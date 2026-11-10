@@ -1,0 +1,1838 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Vivero Sol Puntano</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2e6b3f">
+<link rel="icon" href="icono-192.png">
+<link rel="apple-touch-icon" href="icono-192.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px)}[hidden]{display:none!important}</style>
+</head><body>
+<!-- Vivero Sol Puntano - app de control del vivero (MQTT por WebSocket con TLS) -->
+<style>
+  :root{
+    --bg:#2e6b3f; --campo:#f3f5f1; --sobre-bg:#ffffff; --sobre-bg-suave:#d3e6d8; --sol:#f6bd25; --card:#ffffff; --ink:#18221b; --muted:#5d6b61; --line:#dde3dc;
+    --verde:#2f7d4a; --verde-claro:#e3f1e7; --rojo:#c0392b; --rojo-claro:#fbe6e3;
+    --azul:#2a6fb0; --azul-claro:#e2edf8; --ambar:#b7791f; --ambar-claro:#fdf1dc;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#11301c; --campo:#121714; --sobre-bg:#eef5ef; --sobre-bg-suave:#a9c6b1; --sol:#f2c14e; --card:#1b221d; --ink:#e7ede8; --muted:#9aa89e; --line:#2c352f;
+      --verde:#5cb87c; --verde-claro:#1f3527; --rojo:#e46a5c; --rojo-claro:#3a2220;
+      --azul:#6aa8e6; --azul-claro:#1d2c3b; --ambar:#e0a84a; --ambar-claro:#3a2f1c;
+    }
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0}
+  .app{max-width:520px;margin:0 auto;padding:12px 16px 88px}
+  header{display:flex;align-items:center;gap:12px;padding:6px 0 14px}
+  .marca{display:flex;align-items:center;gap:10px;min-width:0}
+  .marca img{height:72px;width:auto;background:#fff;border-radius:12px;padding:6px 8px;box-shadow:0 1px 3px rgba(0,0,0,.25);flex:none}
+  .titulo{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0}
+  header h1{font-size:16px;margin:0;letter-spacing:.1px;line-height:1.15;white-space:nowrap}
+  @media (max-width:380px){.marca img{height:64px}header h1{font-size:15px}.pill{font-size:12px;padding:4px 8px}}
+  header h1{color:var(--sobre-bg)}
+  header h1 b{color:var(--sol)}
+  #actualizado,#c-detalle,#reg-nota{color:var(--sobre-bg-suave)}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:4px 10px;border-radius:999px;background:var(--line);color:var(--muted);white-space:nowrap}
+  .pill i{width:8px;height:8px;border-radius:50%;background:currentColor;display:inline-block}
+  .pill.ok{background:var(--verde-claro);color:var(--verde)}
+  .pill.mal{background:var(--rojo-claro);color:var(--rojo)}
+  .pill.aviso{background:var(--ambar-claro);color:var(--ambar)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:0 0 10px;font-weight:600}
+  .grande{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .medida{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .medida small{color:var(--muted);font-size:13px}
+  .medida .v{font-size:40px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+  .medida .v span{font-size:18px;font-weight:500;color:var(--muted);margin-left:2px}
+  .fila{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+  .fila:first-of-type{border-top:0}
+  .estado{font-weight:600}
+  .estado.verde{color:var(--verde)} .estado.rojo{color:var(--rojo)} .estado.azul{color:var(--azul)} .estado.ambar{color:var(--ambar)}
+  .seg{display:grid;grid-template-columns:1fr 1fr;background:var(--line);border-radius:10px;padding:3px;gap:3px}
+  .seg button{border:0;background:transparent;color:var(--muted);padding:10px;border-radius:8px;font:inherit;font-weight:600}
+  .seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+  .botones{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .botones.dos{grid-template-columns:1fr 1fr}
+  .btn{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:12px 8px;border-radius:10px;font:inherit;font-weight:600;min-height:46px}
+  .btn:active{transform:scale(.98)}
+  .btn:disabled{opacity:.4}
+  .btn.prim{background:var(--verde);border-color:var(--verde);color:#fff}
+  .btn.peligro{background:var(--rojo);border-color:var(--rojo);color:#fff}
+  .btn.azul{background:var(--azul);border-color:var(--azul);color:#fff}
+  .nota{color:var(--muted);font-size:13px;margin:8px 0 0}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--campo);color:var(--ink);font:inherit}
+  .doble{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .alarma{padding:10px 0;border-top:1px solid var(--line)}
+  .alarma:first-child{border-top:0}
+  .alarma time{display:block;color:var(--muted);font-size:12px}
+  nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:grid;grid-auto-flow:column;grid-auto-columns:1fr;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
+  nav button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;padding:6px 2px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:2px}
+  nav button svg{width:22px;height:22px}
+  nav button.on{color:var(--verde);background:var(--verde-claro)}
+  .vista{display:none}.vista.on{display:block}
+  /* Pantalla principal: una tarjeta por equipo (vivero e hibernaculos) */
+  .tit-grilla{color:var(--sobre-bg);font-size:15px;margin:2px 2px 10px;font-weight:700;letter-spacing:.2px}
+  .grilla{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .tarj{display:flex;flex-direction:column;gap:6px;min-height:150px;border:0;border-radius:16px;padding:14px;background:var(--card);color:var(--ink);font:inherit;text-align:left;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+  .tarj:active{transform:scale(.98)}
+  .tarj .tn{display:flex;align-items:center;gap:7px;font-weight:700;font-size:15px;line-height:1.2}
+  .tarj .tn i{flex:none;width:9px;height:9px;border-radius:50%;background:#9aa}
+  .tarj .tn i.ok{background:#2fa84f}.tarj .tn i.mal{background:var(--rojo)}
+  .tarj .tt{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1;margin-top:auto}
+  .tarj .th{font-size:20px;font-weight:600;color:var(--azul);font-variant-numeric:tabular-nums}
+  .tarj .tt span,.tarj .th span{font-size:14px;font-weight:500;color:var(--muted)}
+  .tarj small{color:var(--muted);font-size:12.5px;line-height:1.3}
+  .tarj small.mal{color:var(--rojo);font-weight:600}
+  .volver{flex:none;border:0;border-radius:999px;padding:8px 14px;font:inherit;font-weight:700;font-size:14px;background:var(--card);color:var(--verde);cursor:pointer}
+  nav .nav-pc{display:none}
+  .equipos{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
+  .equipos::-webkit-scrollbar{display:none}
+  .equipo{flex:none;display:inline-flex;align-items:center;gap:7px;border:0;border-radius:999px;padding:8px 14px;font:inherit;font-weight:600;font-size:14px;background:rgba(255,255,255,.16);color:var(--sobre-bg)}
+  .equipo i{width:8px;height:8px;border-radius:50%;background:#9aa;display:inline-block}
+  .equipo i.ok{background:#7ee08f}.equipo i.mal{background:#ff8a7a}
+  .equipo.on{background:var(--card);color:var(--ink)}
+  .badge{background:var(--rojo);color:#fff;border-radius:999px;font-size:11px;padding:0 6px;margin-left:4px}
+  .graf-cab{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+  .graf-cab h2{margin:0}
+  .seg.tres{grid-template-columns:repeat(3,1fr)}
+  .seg.tres button{padding:6px 10px;font-size:13px}
+  .graf{position:relative;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+  .graf svg{display:block;width:100%;height:210px}
+  .graf .eje{fill:var(--muted);font-size:10px;font-variant-numeric:tabular-nums}
+  .graf .rejilla{stroke:var(--line);stroke-width:1}
+  .graf .lt{fill:none;stroke:var(--rojo);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+  .graf .lh{fill:none;stroke:var(--azul);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+  .graf .spt{stroke:var(--rojo);stroke-width:1;stroke-dasharray:4 4;opacity:.65}
+  .graf .sph{stroke:var(--azul);stroke-width:1;stroke-dasharray:4 4;opacity:.65}
+  .graf .cursor{stroke:var(--ink);stroke-width:1;opacity:.4}
+  .graf .pt{fill:var(--rojo)} .graf .ph{fill:var(--azul)}
+  .g-tip{position:absolute;top:0;background:var(--ink);color:var(--card);font-size:12px;padding:4px 8px;border-radius:8px;white-space:nowrap;pointer-events:none;transform:translateX(-50%)}
+  .leyenda{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted);margin-top:6px}
+  .leyenda b{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+  .leyenda .t b{border-color:var(--rojo)} .leyenda .h b{border-color:var(--azul)} .leyenda .sp b{border-top-style:dashed;border-color:var(--muted)}
+  .clima{border-radius:14px;padding:12px 14px;margin-bottom:12px;border:1px solid;cursor:pointer}
+  .clima.amarillo{background:#fff6cc;border-color:#e8c200;color:#5c4a00}
+  .clima.naranja{background:#ffe3c7;border-color:#f08a24;color:#6b3300}
+  .clima.rojo{background:#ffd9d6;border-color:#d93025;color:#6e0f08}
+  .clima.otro{background:var(--card);border-color:var(--line);color:var(--ink)}
+  .clima .al+.al{margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.12)}
+  .clima b{display:block;font-size:15px}
+  .clima small{display:block;font-size:13px;opacity:.85}
+  .clima p{margin:6px 0 0;font-size:13px}
+  .clima .fuente{font-size:11px;opacity:.7;margin-top:8px}
+  .interruptor{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:15px;color:var(--ink);margin:0}
+  .interruptor input{width:auto;transform:scale(1.4);accent-color:var(--verde)}
+  .btn.chico{min-height:0;padding:6px 12px;font-size:13px}
+  .af-top{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+  .af-top div{background:var(--campo);border-radius:10px;padding:8px 10px}
+  .af-top small{display:block;color:var(--muted);font-size:12px}
+  .af-top b{font-size:18px;font-variant-numeric:tabular-nums}
+  .af-pron{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+  .af-pron > div{border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center;font-size:13px}
+  .af-pron b{display:block;font-size:14px}
+  .af-pron .mm{font-size:16px;font-weight:700;margin:2px 0;font-variant-numeric:tabular-nums}
+  .af-pron .mm .fr{color:var(--azul)} .af-pron .mm .ca{color:var(--rojo)}
+  .af-pron small{color:var(--muted);display:block;line-height:1.25}
+  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:12px 0 0;font-weight:600}
+  .permisos{border:1px dashed var(--sol);background:var(--ambar-claro);color:var(--ink)}
+  .permisos p{margin:0 0 10px;font-size:14px}
+  .ok-txt{color:var(--verde);font-weight:600} .mal-txt{color:var(--rojo);font-weight:600}
+  .quien{font-size:12px;color:var(--sobre-bg-suave);display:flex;gap:8px;align-items:center}
+  .quien button{border:0;background:rgba(255,255,255,.16);color:var(--sobre-bg);border-radius:999px;padding:3px 10px;font:inherit;font-size:12px}
+  .ingreso select,.campo-sel{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--campo);color:var(--ink);font:inherit}
+  .pinin{letter-spacing:6px;font-size:22px;text-align:center}
+  .usu{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+  .usu:first-child{border-top:0}
+  .usu small{color:var(--muted)}
+  .usu .acc{display:flex;gap:6px}
+  .reg{padding:8px 0;border-top:1px solid var(--line);font-size:14px}
+  .reg:first-child{border-top:0}
+  .reg time{color:var(--muted);font-size:12px;margin-right:6px;font-variant-numeric:tabular-nums}
+  .reg b{font-weight:600}
+  .reg .q-auto{color:var(--azul)} .reg .q-panel{color:var(--ambar)} .reg .q-rech{color:var(--rojo)}
+  .solo-admin{color:var(--muted);font-size:13px}
+  .filtros{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
+  .filtros label{margin:4px 0 2px}
+  .filtros input,.filtros select{padding:8px 10px}
+  .solo-pc{display:none}
+  .resumen{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+  .eq{border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;background:var(--card);text-align:left;font:inherit;color:var(--ink)}
+  .eq.on{border-color:var(--verde);box-shadow:0 0 0 2px var(--verde-claro)}
+  .eq b{display:flex;align-items:center;gap:6px;font-size:15px}
+  .eq b i{width:8px;height:8px;border-radius:50%;background:#9aa}
+  .eq b i.ok{background:#2fa84f} .eq b i.mal{background:var(--rojo)}
+  .eq .nums{font-size:24px;font-weight:700;margin:4px 0;font-variant-numeric:tabular-nums}
+  .eq .nums span{font-size:15px;color:var(--muted);font-weight:500}
+  .eq small{display:block;color:var(--muted);font-size:13px}
+  .clima-viejo{background:var(--rojo-claro);color:var(--rojo);border-radius:10px;padding:8px 10px;font-size:13px;font-weight:600;margin-bottom:8px}
+  /* ---------- Pantalla de PC (monitor) ---------- */
+  @media (min-width: 900px){
+    body{font-size:15px}
+    .app{max-width:1240px;padding:16px 24px 32px 236px}
+    nav{top:0;bottom:0;right:auto;width:212px;grid-auto-flow:row;grid-template-columns:1fr;grid-auto-rows:min-content;align-content:start;gap:4px;border-top:0;border-right:1px solid var(--line);padding:132px 12px 12px}
+    nav button{flex-direction:row;justify-content:flex-start;gap:12px;font-size:15px;padding:11px 14px}
+    .solo-pc{display:block}
+    nav .nav-pc{display:flex}
+    .grilla{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+    .toast{bottom:24px}
+    #v-inicio.on{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);column-gap:16px;align-items:start;
+      grid-template-areas:"aviso aviso" "primer primer" "equipos equipos" "medidas medidas" "act act" "graf estado" "graf control"}
+    #clima{grid-area:aviso} #f-primer{grid-area:primer} #equipos{grid-area:equipos} #c-resumen{grid-area:resumen}
+    #v-inicio .grande{grid-area:medidas;grid-template-columns:repeat(2,minmax(0,1fr))} #actualizado{grid-area:act;margin-bottom:12px}
+    #c-graf{grid-area:graf;margin-top:0!important} #c-estado{grid-area:estado;margin-top:0!important} #c-control{grid-area:control}
+    .graf svg{height:320px}
+    #v-cultivos.on{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px;align-items:start}
+    #cu-resumen,#cu-tabs{grid-column:1 / -1}
+    #v-ajustes.on,#v-clima.on{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+    #v-ajustes .card,#v-clima .card{margin-bottom:0}
+    .filtros{grid-template-columns:2fr 1fr 1fr 2fr}
+    #v-alarmas{max-width:980px}
+    .reg{display:grid;grid-template-columns:150px 140px 1fr;gap:10px}
+    .reg span{padding-left:0}
+    #v-ingreso,#v-conexion{max-width:520px}
+  }
+  .cu-tabs .equipo{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+  .cu-tabs .equipo.on{background:var(--verde);color:#fff;border-color:var(--verde)}
+  .cu-tabs .equipo i.reg{background:var(--azul)} .cu-tabs .equipo i.seco{background:var(--sol)} .cu-tabs .equipo i.ok{background:#7ee08f} .cu-tabs .equipo i.mal{background:var(--rojo)}
+  .cu-graf svg{display:block;width:100%;height:150px}
+  .cu-graf .ls{fill:none;stroke:var(--verde);stroke-width:2;stroke-linejoin:round}
+  .cu-graf .lr{fill:var(--azul);opacity:.18}
+  .riego-item{padding:7px 0;border-top:1px solid var(--line);font-size:14px}
+  .riego-item:first-child{border-top:0}
+  .riego-item small{color:var(--muted);display:block}
+  #cu-resumen .nota{margin:0}
+  .toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%;text-align:center}
+  .toast.on{opacity:.95}
+  .demo-cartel{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--sol);color:#2b2100;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px;font-weight:700}
+  .demo-bot{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .demo-cartel button{background:#2b2100;color:#fff;border:0;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+</style>
+
+<div class="app">
+  <div class="demo-cartel" id="demo-cartel" hidden><span>DEMOSTRACIÓN · vivero simulado, sin equipo real</span><span class="demo-bot"><button type="button" id="demo-reiniciar" title="Volver la demostración a fábrica">Reiniciar</button><button type="button" id="demo-salir">Salir</button></span></div>
+  <header>
+    <div class="marca"><img src="logo.png" alt="Sol Puntano"></div>
+    <div class="titulo">
+      <h1>Vivero <b>Sol Puntano</b></h1>
+      <span id="conexion" class="pill"><i></i><span>Sin conectar</span></span>
+      <span class="quien" id="quien" hidden><span id="quien-txt"></span><button id="salir">Salir</button></span>
+    </div>
+  </header>
+
+  <!-- ============ INGRESO (si el equipo tiene usuarios) ============ -->
+  <section id="v-ingreso" class="vista ingreso">
+    <form class="card" id="f-ingreso" autocomplete="off">
+      <h2 id="ing-tit">Ingresar</h2>
+      <label for="ing-usuario">Usuario</label>
+      <select id="ing-usuario"></select>
+      <label for="ing-pin">PIN</label>
+      <input id="ing-pin" class="pinin" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+      <div class="botones dos" style="margin-top:14px"><span></span><button type="submit" class="btn prim">Entrar</button></div>
+      <p class="nota" id="ing-nota">Pedile el PIN al administrador.</p>
+      <button type="button" class="btn" id="ing-volver" style="width:100%;margin-top:8px">← Volver a los equipos</button>
+    </form>
+  </section>
+
+  <!-- ============ EQUIPOS (pantalla principal) ============ -->
+  <section id="v-equipos" class="vista on">
+    <h2 class="tit-grilla">Equipos</h2>
+    <div class="grilla" id="grilla"></div>
+    <p class="nota" id="grilla-nota" style="color:var(--sobre-bg);opacity:.85">Tocá un equipo para ver sus datos y manejarlo.</p>
+  </section>
+
+  <!-- ============ INICIO (del equipo elegido) ============ -->
+  <section id="v-inicio" class="vista">
+    <div class="clima" id="clima" hidden role="status" aria-live="polite"></div>
+    <form class="card permisos" id="f-primer" hidden autocomplete="off">
+      <h2>Crear el administrador</h2>
+      <p>Este equipo todavía no tiene usuarios. Creá el primero: va a ser el <b>administrador</b> y después da de alta al resto.</p>
+      <div class="doble">
+        <div><label for="pr-nombre">Nombre</label><input id="pr-nombre" maxlength="16" autocapitalize="words"></div>
+        <div><label for="pr-pin">PIN (4 a 6 números)</label><input id="pr-pin" class="pinin" type="password" inputmode="numeric" maxlength="6"></div>
+      </div>
+      <div class="botones dos" style="margin-top:12px"><button type="button" class="btn" id="pr-despues">Más tarde</button><button type="submit" class="btn prim">Crear</button></div>
+    </form>
+    <div class="equipos" id="equipos" role="tablist" aria-label="Equipo"></div>
+    <div class="grande">
+      <div class="medida"><small>Temperatura</small><div class="v" id="temp">--<span>°C</span></div></div>
+      <div class="medida"><small>Humedad</small><div class="v" id="hum">--<span>%</span></div></div>
+    </div>
+    <p class="nota" id="actualizado">Esperando datos del vivero…</p>
+
+    <div class="card" id="c-graf" style="margin-top:12px">
+      <div class="graf-cab">
+        <h2>Últimas horas</h2>
+        <div class="seg tres" id="rango">
+          <button data-h="6">6 h</button><button data-h="24">24 h</button><button data-h="48">48 h</button>
+        </div>
+      </div>
+      <div class="graf" id="graf">
+        <svg id="g-svg" aria-label="Gráfico de temperatura y humedad"></svg>
+        <div class="g-tip" id="g-tip" hidden></div>
+      </div>
+      <div class="leyenda">
+        <span class="t"><b></b>Temperatura (°C, izq.)</span>
+        <span class="h"><b></b>Humedad (%, der.)</span>
+        <span class="sp"><b></b>Ajustes (abre/cierra, riega/corta)</span>
+      </div>
+      <p class="nota" id="g-nota"></p>
+    </div>
+
+    <div class="card" id="c-estado" style="margin-top:12px">
+      <h2>Estado</h2>
+      <div class="fila"><span>Equipo</span><span class="estado" id="online">—</span></div>
+      <div class="fila"><span>Venteo</span><span class="estado" id="venteo">—</span></div>
+      <div class="fila"><span>Riego</span><span class="estado" id="riego">—</span></div>
+      <div class="fila"><span>Sensor</span><span class="estado" id="sensor">—</span></div>
+    </div>
+
+    <div class="card" id="c-control">
+      <h2>Control</h2>
+      <div class="seg" id="modo">
+        <button data-modo="auto">Automático</button>
+        <button data-modo="manual">Manual</button>
+      </div>
+      <p class="nota" id="modo-nota">En automático el equipo decide solo. Pasá a manual para mover el venteo o regar.</p>
+
+      <label>Venteo</label>
+      <div class="botones">
+        <button class="btn prim"    data-cmd="venteo" data-msg="abrir"  data-manual>Abrir</button>
+        <button class="btn azul"    data-cmd="venteo" data-msg="cerrar" data-manual>Cerrar</button>
+        <button class="btn peligro" data-cmd="venteo" data-msg="parar">Parar</button>
+      </div>
+      <label>Riego</label>
+      <div class="botones dos">
+        <button class="btn prim" data-cmd="riego" data-msg="on" data-manual>Regar</button>
+        <button class="btn"      data-cmd="riego" data-msg="off">Cortar riego</button>
+      </div>
+      <p class="nota">«Parar» y «Cortar riego» funcionan siempre, también en automático.</p>
+    </div>
+  </section>
+
+  <!-- ============ CULTIVOS ============ -->
+  <section id="v-cultivos" class="vista">
+    <div class="card" id="cu-resumen">
+      <div class="graf-cab"><h2>Riego por cultivos</h2><span class="pill" id="cu-modo">—</span></div>
+      <p class="nota" id="cu-estado">Esperando datos del equipo…</p>
+    </div>
+    <div class="equipos cu-tabs" id="cu-tabs" role="tablist" aria-label="Cultivo"></div>
+    <div>
+      <div class="card" id="cu-ficha">
+        <div class="graf-cab"><h2 id="cu-nombre">Cultivo</h2><span class="pill" id="cu-pill">—</span></div>
+        <div class="grande">
+          <div class="medida"><small>Humedad del suelo</small><div class="v" id="cu-suelo">--<span>%</span></div></div>
+          <div class="medida"><small>Litros hoy</small><div class="v" id="cu-lhoy">--<span>L</span></div></div>
+        </div>
+        <div class="fila" style="margin-top:8px"><span>Litros este mes / total</span><span class="estado" id="cu-lmes">—</span></div>
+        <div class="fila"><span>Riega</span><span class="estado" id="cu-regla">—</span></div>
+        <div class="fila"><span>Riego en curso</span><span class="estado" id="cu-curso">—</span></div>
+        <h3>Humedad del suelo, últimas 48 h</h3>
+        <div class="cu-graf"><svg id="cu-svg" aria-label="Humedad del suelo"></svg></div>
+        <div class="botones dos" style="margin-top:10px">
+          <button class="btn prim" id="cu-regar" data-manual>Regar este</button>
+          <button class="btn" id="cu-cortar">Cortar riego</button>
+        </div>
+        <p class="nota">«Regar» funciona en manual; «Cortar» siempre. Se riega de a un cultivo por vez.</p>
+      </div>
+    </div>
+    <div>
+      <form class="card" id="f-cultivo" autocomplete="off">
+        <h2>Ajustes de este cultivo</h2>
+        <label for="cf-nombre">Nombre</label><input id="cf-nombre" maxlength="16">
+        <label for="cf-modo">Cortar el riego por</label>
+        <select id="cf-modo" class="campo-sel"><option value="0">Humedad del suelo</option><option value="1">Litros</option><option value="2">Lo que pase primero (humedad o litros)</option></select>
+        <div class="doble">
+          <div><label for="cf-on">Riega debajo de (%)</label><input id="cf-on" type="number" min="0" max="99" inputmode="numeric"></div>
+          <div><label for="cf-off">Corta arriba de (%)</label><input id="cf-off" type="number" min="1" max="100" inputmode="numeric"></div>
+        </div>
+        <div class="doble">
+          <div><label for="cf-litros">Corta a los (litros)</label><input id="cf-litros" type="number" min="1" max="5000" inputmode="numeric"></div>
+          <div><label for="cf-max">Máximo por riego (min)</label><input id="cf-max" type="number" min="1" max="240" inputmode="numeric"></div>
+        </div>
+        <label class="interruptor" for="cf-activo" style="margin-top:12px">Riego automático de este cultivo <input id="cf-activo" type="checkbox"></label>
+        <p class="solo-admin" id="cf-admin" hidden>Solo un administrador puede cambiar estos valores.</p>
+        <div class="botones dos" style="margin-top:12px"><span></span><button type="submit" class="btn prim">Guardar</button></div>
+      </form>
+      <div class="card">
+        <div class="graf-cab"><h2>Últimos riegos</h2><button class="btn chico" id="cu-riegos-act">Actualizar</button></div>
+        <div id="cu-riegos"><p class="nota">Cargando…</p></div>
+      </div>
+      <button class="btn prim" id="cu-exportar" style="width:100%;margin-bottom:12px">Exportar todo a Excel</button>
+    </div>
+  </section>
+
+  <!-- ============ CLIMA ============ -->
+  <section id="v-clima" class="vista">
+    <div class="card permisos" id="c-permisos" hidden>
+      <h2>Avisos del clima</h2>
+      <p>Para avisarte de heladas, ráfagas y alertas del SMN <b>aunque la app esté cerrada</b>, permití las notificaciones y que Android no la frene.</p>
+      <div class="botones dos">
+        <button class="btn prim" id="perm-activar">Activar avisos</button>
+        <button class="btn" id="perm-auto" hidden>Inicio automático</button>
+      </div>
+      <p class="nota" id="perm-nota"></p>
+    </div>
+
+    <div class="card" id="c-afuera">
+      <div class="graf-cab"><h2>Afuera</h2><button class="btn chico" id="af-act">Actualizar</button></div>
+      <div class="af-top">
+        <div><small>Temperatura</small><b id="af-temp">--</b></div>
+        <div><small>Humedad</small><b id="af-hum">--</b></div>
+        <div><small>Viento</small><b id="af-viento">--</b></div>
+      </div>
+      <div class="fila"><span>Ráfaga máx. hoy</span><span class="estado" id="af-rafaga">—</span></div>
+      <div class="fila"><span>Lluvia 24 h / 30 días</span><span class="estado" id="af-lluvia">—</span></div>
+      <div class="fila"><span>Suelo 5 / 10 / 30 cm</span><span class="estado" id="af-suelo">—</span></div>
+      <h3 id="af-pron-tit">Pronóstico</h3>
+      <div class="af-pron" id="af-pron"></div>
+      <p class="nota" id="af-nota">Cargando…</p>
+    </div>
+
+  </section>
+
+  <!-- ============ AJUSTES ============ -->
+  <section id="v-ajustes" class="vista">
+    <form class="card" id="f-nombre" hidden autocomplete="off">
+      <h2>Nombre del equipo</h2>
+      <div class="doble">
+        <div><label for="eq-nombre">Se ve en la pantalla de equipos</label><input id="eq-nombre" maxlength="24" autocapitalize="words"></div>
+        <div style="display:flex;align-items:flex-end"><button type="submit" class="btn prim" style="width:100%">Guardar nombre</button></div>
+      </div>
+    </form>
+    <form class="card" id="f-ajustes">
+      <h2>Venteo</h2>
+      <div class="doble">
+        <div><label for="temp_abrir">Abre arriba de (°C)</label><input id="temp_abrir" type="number" step="0.5" inputmode="decimal"></div>
+        <div><label for="temp_cerrar">Cierra abajo de (°C)</label><input id="temp_cerrar" type="number" step="0.5" inputmode="decimal"></div>
+      </div>
+      <label for="motor_max_s" id="lbl-motor">Tiempo máximo del motor (s)</label>
+      <input id="motor_max_s" type="number" step="1" inputmode="numeric">
+
+      <h2 style="margin-top:18px">Riego</h2>
+      <div class="doble">
+        <div><label for="hum_riego_on">Riega debajo de (%)</label><input id="hum_riego_on" type="number" step="1" inputmode="decimal"></div>
+        <div><label for="hum_riego_off">Corta arriba de (%)</label><input id="hum_riego_off" type="number" step="1" inputmode="decimal"></div>
+      </div>
+      <div class="doble">
+        <div><label for="riego_max_min">Riego máximo (min)</label><input id="riego_max_min" type="number" step="1" inputmode="numeric"></div>
+        <div><label for="riego_pausa_min">Pausa entre riegos (min)</label><input id="riego_pausa_min" type="number" step="1" inputmode="numeric"></div>
+      </div>
+      <div id="clima-ajuste" hidden>
+        <h2 style="margin-top:18px">Alertas del clima</h2>
+        <label class="interruptor" for="clima_cierra">Cerrar el venteo con alerta de viento, tormenta o granizo
+          <input id="clima_cierra" type="checkbox"></label>
+        <p class="nota">Alertas oficiales del SMN para la zona del vivero. Funciona solo en automático; en manual solo avisa.</p>
+      </div>
+      <p class="nota" id="ajustes-nota">Los valores quedan guardados en el equipo, aunque se corte la luz.</p>
+      <p class="solo-admin" id="ajustes-admin" hidden>Solo un administrador puede cambiar estos valores.</p>
+      <div class="botones dos">
+        <button type="button" class="btn" id="ajustes-recargar">Volver a leer</button>
+        <button type="submit" class="btn prim">Guardar</button>
+      </div>
+    </form>
+
+    <div class="card" id="c-usuarios" hidden>
+      <h2>Usuarios</h2>
+      <div id="usu-lista"></div>
+      <form id="f-usuario" autocomplete="off">
+        <h2 style="margin-top:16px">Agregar usuario</h2>
+        <div class="doble">
+          <div><label for="nu-nombre">Nombre</label><input id="nu-nombre" maxlength="16" autocapitalize="words"></div>
+          <div><label for="nu-rol">Rol</label><select id="nu-rol" class="campo-sel"><option value="operario">Operario</option><option value="admin">Administrador</option></select></div>
+        </div>
+        <label for="nu-pin">PIN (4 a 6 números)</label>
+        <input id="nu-pin" class="pinin" type="password" inputmode="numeric" maxlength="6">
+        <div class="botones dos" style="margin-top:12px"><span></span><button type="submit" class="btn prim">Agregar</button></div>
+      </form>
+      <p class="nota">Operario: modo, venteo y riego. Administrador: además ajustes del equipo y usuarios.</p>
+    </div>
+    <form class="card" id="f-mipin" hidden autocomplete="off">
+      <h2>Mi PIN</h2>
+      <div class="doble">
+        <div><label for="mp-nuevo">PIN nuevo</label><input id="mp-nuevo" class="pinin" type="password" inputmode="numeric" maxlength="6"></div>
+        <div><label for="mp-otra">Repetir</label><input id="mp-otra" class="pinin" type="password" inputmode="numeric" maxlength="6"></div>
+      </div>
+      <div class="botones dos" style="margin-top:12px"><span></span><button type="submit" class="btn prim">Cambiar PIN</button></div>
+    </form>
+
+    <form class="card" id="f-clima" hidden>
+      <h2>Clima de afuera y avisos</h2>
+      <div class="doble">
+        <div><label for="cl-helada">Aviso de helada si la mínima baja de (°C)</label><input id="cl-helada" type="number" step="0.5" inputmode="decimal"></div>
+        <div><label for="cl-rafaga">Aviso de ráfaga desde (km/h)</label><input id="cl-rafaga" type="number" step="5" inputmode="numeric"></div>
+      </div>
+      <label class="interruptor" for="cl-avisos" style="margin-top:12px">Avisos en el celular con la app cerrada <input id="cl-avisos" type="checkbox"></label>
+      <p class="nota">Datos: REM (Gobierno de San Luis), estación Las Chacras (viento y suelo de San Luis Rural, porque Las Chacras no los mide) y pronóstico de La Punta. Alertas: SMN. Android revisa cada 15 min o más.</p>
+      <p class="nota" id="cl-permisos"></p>
+      <div class="botones dos">
+        <button type="button" class="btn" id="cl-revisar">Revisar permisos</button>
+        <button type="submit" class="btn prim">Guardar</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ============ ALARMAS ============ -->
+  <section id="v-alarmas" class="vista">
+    <div class="seg" id="sol-alarmas" style="margin-bottom:12px">
+      <button data-sol="alarmas" class="on">Alarmas</button><button data-sol="cambios">Cambios</button>
+    </div>
+    <div id="p-alarmas">
+      <div class="card">
+        <h2>Últimas alarmas</h2>
+        <div id="alarmas"><p class="nota">Sin alarmas.</p></div>
+      </div>
+      <button class="btn" id="alarmas-borrar" style="width:100%">Borrar lista</button>
+    </div>
+    <div id="p-cambios" hidden>
+      <div class="card">
+        <div class="graf-cab"><h2>Quién hizo qué</h2><button class="btn chico" id="reg-act">Actualizar</button></div>
+        <div class="filtros">
+          <div><label for="rf-quien">Quién</label><select id="rf-quien" class="campo-sel"><option value="">Todos</option></select></div>
+          <div><label for="rf-desde">Desde</label><input id="rf-desde" type="date"></div>
+          <div><label for="rf-hasta">Hasta</label><input id="rf-hasta" type="date"></div>
+          <div><label for="rf-texto">Contiene</label><input id="rf-texto" placeholder="ej: riego"></div>
+        </div>
+        <p class="nota" id="rf-cuenta"></p>
+        <div id="registro"><p class="nota">Cargando…</p></div>
+      </div>
+      <button class="btn prim" id="reg-exportar" style="width:100%">Exportar a Excel</button>
+      <p class="nota" id="reg-nota">El equipo guarda las últimas ~300 acciones, aunque se corte la luz.</p>
+    </div>
+  </section>
+
+  <!-- ============ CONEXIÓN ============ -->
+  <section id="v-conexion" class="vista">
+    <form class="card" id="f-conexion" autocomplete="off">
+      <h2>Broker MQTT</h2>
+      <label for="c-host">Dirección</label>
+      <input id="c-host" placeholder="xxxx.ala.us-east-1.emqxsl.com" autocapitalize="off" spellcheck="false">
+      <div class="doble">
+        <div><label for="c-port">Puerto (WebSocket TLS)</label><input id="c-port" type="number" inputmode="numeric"></div>
+        <div><label for="c-nodo">Equipo</label><input id="c-nodo" autocapitalize="off" spellcheck="false"></div>
+      </div>
+      <label for="c-user">Usuario</label>
+      <input id="c-user" autocapitalize="off" spellcheck="false">
+      <label for="c-pass">Clave</label>
+      <input id="c-pass" type="password">
+      <p class="nota">Estos datos quedan guardados solo en este celular.</p>
+      <div class="botones dos">
+        <button type="button" class="btn" id="c-desconectar">Desconectar</button>
+        <button type="submit" class="btn prim">Guardar y conectar</button>
+      </div>
+    </form>
+    <p class="nota" id="c-detalle"></p>
+    <div class="card" id="c-demo" hidden>
+      <h2>Modo demostración</h2>
+      <p class="nota">Para mostrar la app sin placa ni internet: un vivero simulado con 5 cultivos, usuarios de prueba y clima de ejemplo. No toca el equipo real ni sus datos.</p>
+      <div class="botones"><button type="button" class="btn prim" id="c-demo-btn">Probar en modo demostración</button></div>
+    </div>
+  </section>
+</div>
+
+<nav>
+  <button data-vista="equipos" class="nav-pc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>Equipos</button>
+  <button data-vista="inicio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Inicio</button>
+  <button data-vista="cultivos" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21v-9"/><path d="M12 12C12 7 8.5 4 4 4c0 5 3.5 8 8 8z"/><path d="M12 14c0-4 3-6.5 7-6.5 0 4-3 6.5-7 6.5z"/><path d="M5 21h14"/></svg>Cultivos</button>
+  <button data-vista="clima"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M2.5 8H1M3.6 3.6l1 1M12.4 3.6l-1 1"/><path d="M9 20h9a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.4 1.6A3.3 3.3 0 0 0 9 20z"/></svg>Clima</button>
+  <button data-vista="ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Ajustes</button>
+  <button data-vista="alarmas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span>Alarmas<span id="badge" class="badge" hidden></span></span></button>
+  <button data-vista="conexion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/><path d="M2 9a14 14 0 0 1 20 0"/></svg>Conexión</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script src="mqtt.min.js"></script>
+<script src="runners/clima.js"></script>
+<script src="demo.js"></script>   <!-- MODO DEMOSTRACION: borrar esta linea y demo.js para sacarlo -->   <!-- el mismo revisor de clima que corre en segundo plano -->
+<script>
+(function(){
+  'use strict';
+
+  // ---------- Utilidades ----------
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => Array.from(document.querySelectorAll(s));
+  // Modo demostración: guarda todo aparte ("demo.dm.*"), así no se mezcla con el equipo real
+  const DEMO = !!window.DemoVivero && (() => { try { return localStorage.getItem('dm.demo') === '1'; } catch (e) { return false; } })();
+  const PRE = DEMO ? 'demo.' : '';
+  const leer = (k, d) => { try { const v = localStorage.getItem(PRE + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const guardar = (k, v) => { try { localStorage.setItem(PRE + k, JSON.stringify(v)); } catch (e) {} };
+  let toastT;
+  function avisar(txt){ const t = $('#toast'); t.textContent = txt; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2600); }
+  const hora = (d) => d.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  const fecha = (d) => d.toLocaleString('es-AR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false});
+
+  // ---------- Configuración de conexión (guardada en el celular) ----------
+  const DEF = { host: 'p64138d1.ala.us-east-1.emqxsl.com', port: 8084, nodo: 'nodo1', user: 'vivero-app', pass: '' };
+  let cfg = Object.assign({}, DEF, leer('dm.conexion', {}));
+
+  // ---------- Estado de la app ----------
+  let cliente = null;
+  let estado = null, ultimoEstado = 0, online = null, cfgEquipo = null;
+  let alarmas = leer('dm.alarmas', []);
+  let noLeidas = 0;
+
+  // ---------- Navegación ----------
+  $$('nav button').forEach(b => b.addEventListener('click', () => {
+    if (bloqueadoIngreso && b.dataset.vista !== 'conexion' && b.dataset.vista !== 'equipos') { mostrarVista('ingreso'); avisar('Primero ingresá con tu usuario'); return; }
+    $$('nav button').forEach(x => x.classList.toggle('on', x === b));
+    $$('.vista').forEach(v => v.classList.toggle('on', v.id === 'v-' + b.dataset.vista));
+    if (b.dataset.vista === 'alarmas') { noLeidas = 0; pintarBadge(); }
+    if (b.dataset.vista === 'ajustes') { cargarAjustes(); cargarClimaCfg(); pintarUsuarios(); }
+    if (b.dataset.vista === 'alarmas' && solapa === 'cambios') pedirRegistro();
+    if (b.dataset.vista === 'inicio') setTimeout(dibujar, 0);   // al estar oculto no tenía ancho
+    if (b.dataset.vista === 'equipos') pintarGrilla();
+    if (b.dataset.vista === 'clima') { pintarPermisos(); actualizarAfuera(false); }
+    if (b.dataset.vista === 'cultivos') { pintarCultivos(); cargarCultivoCfg(); pedirRiegos(); }
+    window.scrollTo(0, 0);
+  }));
+
+  // ---------- Conexión MQTT ----------
+  const base = () => 'vivero/' + cfg.nodo + '/';
+
+  function pill(clase, txt){ const p = $('#conexion'); p.className = 'pill ' + clase; p.lastElementChild.textContent = txt; }
+
+  function conectar(){
+    desconectar();
+    if (DEMO) { cliente = window.DemoVivero.crear(); pill('aviso', 'Conectando…'); }
+    else {
+    if (!cfg.host || !cfg.user || !cfg.pass) {
+      pill('aviso', 'Falta configurar');
+      $('#c-detalle').textContent = 'Completá dirección, usuario y clave en Conexión.';
+      return;
+    }
+    // wss = WebSocket con TLS (cifrado). Solo para pruebas locales se permite ws sin cifrar.
+    const local = /^(localhost|127\.0\.0\.1)$/.test(cfg.host);
+    const url = (local ? 'ws://' : 'wss://') + cfg.host + ':' + cfg.port + '/mqtt';
+    pill('aviso', 'Conectando…');
+    cliente = mqtt.connect(url, {
+      username: cfg.user,
+      password: cfg.pass,
+      clientId: 'domovil-' + Math.random().toString(16).slice(2, 10),  // único: dos celulares no se pisan
+      keepalive: 30,
+      reconnectPeriod: 4000,
+      connectTimeout: 15000,
+      clean: true
+    });
+    }
+    cliente.on('connect', () => {
+      pill('ok', DEMO ? 'Demostración' : 'En línea');
+      $('#c-detalle').textContent = DEMO ? 'Conectado al vivero simulado (modo demostración).' : 'Conectado a ' + cfg.host + ' como ' + cfg.user + '.';
+      cliente.subscribe(['vivero/+/online', 'vivero/+/nombre'], { qos: 1 });   // para descubrir los equipos
+      cliente.subscribe('vivero/+/estado', { qos: 0 });                        // la pantalla de equipos muestra todos
+      cliente.subscribe('vivero/clima/alerta', { qos: 1 });                     // alertas del SMN (robot)
+      suscribirNodo();
+      ordenar('estado', '1');  // pide el estado al instante
+    });
+    cliente.on('reconnect', () => pill('aviso', 'Reconectando…'));
+    cliente.on('offline',   () => pill('mal', 'Sin internet'));
+    cliente.on('error', (e) => {
+      const m = String(e && e.message || e);
+      pill('mal', /auth|Not authorized|Bad User/i.test(m) ? 'Usuario o clave mal' : 'Error');
+      $('#c-detalle').textContent = 'Detalle: ' + m;
+      if (/auth|Not authorized|Bad User/i.test(m)) cliente.end(true);  // no insistir con clave mala
+    });
+    cliente.on('message', alMensaje);
+  }
+
+  function desconectar(){
+    if (cliente) { cliente.end(true); cliente = null; }
+    pill('', 'Sin conectar');
+  }
+
+  function ordenar(sub, msg){
+    if (!cliente || !cliente.connected) { avisar('No hay conexión con el broker'); return false; }
+    let m = String(msg);
+    // Equipos con usuarios: la orden va firmada "valor;Nombre" (los viejos reciben la orden sola)
+    if (cfgEquipo && cfgEquipo.usuarios && sub !== 'estado' && sub !== 'historial' && sub !== 'registro') {
+      const s = sesionActual();
+      m += ';' + (s ? s.nombre : '');
+      if (s) { s.ultimo = Date.now(); guardar('dm.sesiones', sesiones); }
+    }
+    cliente.publish(base() + 'cmd/' + sub, m, { qos: 1, retain: false });
+    return true;
+  }
+
+  // ---------- Equipos (vivero = nodo1, hibernaculos = nodo2, nodo3...) ----------
+  const nodos = {};
+  const nombreNodo = (id) => (nodos[id] && nodos[id].nombre) || (id === 'nodo1' ? 'Vivero' : id);
+  function suscribirNodo(){
+    cliente.subscribe([base() + 'estado', base() + 'config', base() + 'alarma', base() + 'historial',
+                       base() + 'usuarios', base() + 'registro', base() + 'registro/nuevo',
+                       base() + 'cultivos', base() + 'cultivos/config', base() + 'riegos', base() + 'riegos/nuevo'], { qos: 1 });
+    ordenar('estado', '1');
+    pedirHistorial();
+  }
+  function cambiarNodo(id){
+    if (id === cfg.nodo) return;
+    if (cliente && cliente.connected) cliente.unsubscribe([base() + 'estado', base() + 'config', base() + 'alarma', base() + 'historial',
+                                                             base() + 'usuarios', base() + 'registro', base() + 'registro/nuevo',
+                                                             base() + 'cultivos', base() + 'cultivos/config', base() + 'riegos', base() + 'riegos/nuevo']);
+    cfg.nodo = id; guardar('dm.conexion', cfg); $('#c-nodo').value = id;
+    estado = null; cfgEquipo = null; ultimoEstado = 0;
+    usuariosEquipo = null; registro = []; regPartes = null;
+    cuCfg = null; cuEst = null; riegos = []; riegosPartes = null; cuVivo = {};
+    online = nodos[id] ? nodos[id].online : null;
+    $('#actualizado').textContent = 'Esperando datos de ' + nombreNodo(id) + '…';
+    ['temp','hum'].forEach(k => $('#' + k).firstChild.nodeValue = '--');
+    ['venteo','riego','sensor'].forEach(k => poner(k, '—'));
+    if (cliente && cliente.connected) suscribirNodo();
+    pintarEquipos(); pintar(); dibujar(); revisarAcceso(); pintarRegistro(); pintarCultivos();
+  }
+  function pintarResumen(){
+    const c = $('#resumen'); if (!c || NATIVO) return;
+    const ids = Object.keys(nodos).filter(id => nodos[id].estado || nodos[id].online !== undefined);
+    if (!ids.includes(cfg.nodo)) ids.push(cfg.nodo);
+    ids.sort((a, b) => (parseInt(a.replace(/\D/g, '')) || 0) - (parseInt(b.replace(/\D/g, '')) || 0));
+    c.innerHTML = '';
+    ids.forEach(id => {
+      const n = nodos[id] || {}, s = n.estado || (id === cfg.nodo ? estado : null);
+      const b = document.createElement('button'); b.className = 'eq' + (id === cfg.nodo ? ' on' : '');
+      const t = document.createElement('b'); const dot = document.createElement('i');
+      dot.className = n.online === true ? 'ok' : n.online === false ? 'mal' : '';
+      t.append(dot, document.createTextNode(nombreNodo(id) + (s && s.via === 'lora' ? ' · LoRa' : '')));
+      const nums = document.createElement('div'); nums.className = 'nums';
+      nums.innerHTML = '';
+      nums.append(document.createTextNode(s && s.temp != null ? s.temp.toFixed(1) : '--'));
+      const u1 = document.createElement('span'); u1.textContent = ' °C  '; nums.append(u1);
+      nums.append(document.createTextNode(s && s.hum != null ? Math.round(s.hum) : '--'));
+      const u2 = document.createElement('span'); u2.textContent = ' %'; nums.append(u2);
+      const v = s ? (NOMBRE_VENTEO[s.venteo] || [s.venteo])[0] : '—';
+      const d1 = document.createElement('small'); d1.textContent = 'Venteo: ' + v + ' · Riego: ' + (s ? (s.riego === 'on' ? 'regando' : 'apagado') : '—');
+      const d2 = document.createElement('small'); d2.textContent = s ? (s.modo === 'auto' ? 'Automático' : 'Manual') + (s.sensor_ok === false ? ' · ⚠ sensor' : '') : 'Sin datos';
+      b.append(t, nums, d1, d2);
+      b.addEventListener('click', () => cambiarNodo(id));
+      c.append(b);
+    });
+  }
+  // Pantalla principal: una tarjeta por equipo. Al tocarla se entra a ese equipo.
+  function idsEquipos(){
+    const ids = Object.keys(nodos).filter(id => nodos[id].estado || nodos[id].online !== undefined || nodos[id].nombre);
+    if (!ids.includes(cfg.nodo)) ids.push(cfg.nodo);
+    return ids.sort((a, b) => (parseInt(a.replace(/\D/g, '')) || 0) - (parseInt(b.replace(/\D/g, '')) || 0));
+  }
+  function pintarGrilla(){
+    const c = $('#grilla'); if (!c) return;
+    c.innerHTML = '';
+    idsEquipos().forEach(id => {
+      const n = nodos[id] || {}, s = n.estado || (id === cfg.nodo ? estado : null);
+      const b = document.createElement('button'); b.className = 'tarj'; b.type = 'button';
+      const tn = document.createElement('div'); tn.className = 'tn';
+      const dot = document.createElement('i'); dot.className = n.online === true ? 'ok' : n.online === false ? 'mal' : '';
+      tn.append(dot, document.createTextNode(nombreNodo(id)));
+      const tt = document.createElement('div'); tt.className = 'tt';
+      tt.append(document.createTextNode(s && s.temp != null ? s.temp.toFixed(1) : '--'));
+      const u1 = document.createElement('span'); u1.textContent = ' °C'; tt.append(u1);
+      const th = document.createElement('div'); th.className = 'th';
+      th.append(document.createTextNode(s && s.hum != null ? Math.round(s.hum) : '--'));
+      const u2 = document.createElement('span'); u2.textContent = ' % hum.'; th.append(u2);
+      const sm = document.createElement('small');
+      if (n.online === false) { sm.textContent = 'Desconectado'; sm.className = 'mal'; }
+      else if (!s) sm.textContent = 'Esperando datos…';
+      else if (s.sensor_ok === false) { sm.textContent = '⚠ Falla el sensor'; sm.className = 'mal'; }
+      else {
+        const p = [];
+        if (s.riego === 'on') p.push('💧 Regando');
+        if (s.venteo === 'abierto' || s.venteo === 'abriendo') p.push('Venteo abierto');
+        if (s.clima_cierre) p.push('⚠ Alerta SMN');
+        p.push(s.modo === 'auto' ? 'Automático' : 'Manual');
+        if (s.via === 'lora') p.push('LoRa');
+        sm.textContent = p.join(' · ');
+      }
+      b.append(tn, tt, th, sm);
+      b.addEventListener('click', () => entrarEquipo(id));
+      c.append(b);
+    });
+  }
+  function entrarEquipo(id){
+    cambiarNodo(id);
+    mostrarVista(bloqueadoIngreso ? 'ingreso' : 'inicio');
+    setTimeout(dibujar, 0);
+    window.scrollTo(0, 0);
+  }
+  let grillaT = 0;    // el estado llega seguido: se repinta como mucho 2 veces por segundo
+  const pedirGrilla = () => { if (!grillaT) grillaT = setTimeout(() => { grillaT = 0; pintarGrilla(); }, 500); };
+
+  function pintarEquipos(){
+    const c = $('#equipos');
+    const ids = Object.keys(nodos);
+    if (!ids.includes(cfg.nodo)) ids.push(cfg.nodo);
+    ids.sort((a, b) => (parseInt(a.replace(/\D/g, '')) || 0) - (parseInt(b.replace(/\D/g, '')) || 0));
+    c.innerHTML = '';
+    const v = document.createElement('button'); v.type = 'button'; v.className = 'volver'; v.textContent = '← Equipos';
+    v.addEventListener('click', () => { mostrarVista('equipos'); pintarGrilla(); window.scrollTo(0, 0); });
+    const b = document.createElement('span'); b.className = 'equipo on';       // solo el equipo elegido (los demas estan en Equipos)
+    const dot = document.createElement('i');
+    const on = nodos[cfg.nodo] && nodos[cfg.nodo].online;
+    dot.className = on === true ? 'ok' : on === false ? 'mal' : '';
+    b.append(dot, document.createTextNode(nombreNodo(cfg.nodo)));
+    c.append(v, b);
+    pintarResumen(); pedirGrilla();
+  }
+
+  // ---------- Mensajes que llegan ----------
+  function alMensaje(topic, buf){
+    const txt = buf.toString();
+    const m = topic.match(/^vivero\/([^/]+)\/(.+)$/);
+    if (!m) return;
+    const id = m[1];
+    if (id === 'clima') { if (m[2] === 'alerta') try { climaRecibir(JSON.parse(txt)); } catch (e) {} return; }
+    if (m[2] === 'online' || m[2] === 'nombre') {
+      if (id === 'oficina') return;
+      const n = nodos[id] || (nodos[id] = {});
+      if (m[2] === 'online') n.online = (txt === 'online'); else n.nombre = txt;
+      pintarEquipos();
+      if (m[2] === 'nombre' && id === cfg.nodo) cargarNombre();
+    }
+    if (m[2] === 'estado' && id !== 'clima' && id !== 'oficina') {       // para el resumen de la PC
+      const n = nodos[id] || (nodos[id] = {});
+      try { n.estado = JSON.parse(txt); n.cuando = Date.now(); } catch (e) {}
+      pintarResumen(); pedirGrilla();
+    }
+    if (id !== cfg.nodo) return;           // es de otro equipo: solo lo anotamos arriba
+    const sub = m[2];
+    if (sub === 'estado') {
+      try { estado = JSON.parse(txt); ultimoEstado = Date.now(); pintar(); puntoVivo(estado); } catch (e) {}
+    } else if (sub === 'online') {
+      online = (txt === 'online'); pintar();
+    } else if (sub === 'config') {
+      try { cfgEquipo = JSON.parse(txt); if ($('#v-ajustes').classList.contains('on') && !editando) cargarAjustes(); dibujar(); revisarAcceso(); navCultivos(); } catch (e) {}
+    } else if (sub === 'historial') {
+      try { parteHistorial(JSON.parse(txt)); } catch (e) {}
+    } else if (sub === 'usuarios') {
+      try { usuariosEquipo = JSON.parse(txt); revisarAcceso(); pintarUsuarios(); } catch (e) {}
+    } else if (sub === 'registro') {
+      try { parteRegistro(JSON.parse(txt)); } catch (e) {}
+    } else if (sub === 'cultivos') {
+      try { cuEst = JSON.parse(txt); vivoCultivos(); pintarCultivos(); } catch (e) {}
+    } else if (sub === 'cultivos/config') {
+      try { cuCfg = JSON.parse(txt); pintarCultivos(); if (!cuEditando) cargarCultivoCfg(); } catch (e) {}
+    } else if (sub === 'riegos') {
+      try { parteRiegos(JSON.parse(txt)); } catch (e) {}
+    } else if (sub === 'riegos/nuevo') {
+      riegos.unshift(lineaRiego(txt)); riegos = riegos.slice(0, 400); pintarRiegos();
+    } else if (sub === 'registro/nuevo') {
+      registro.unshift(lineaRegistro(txt)); registro = registro.slice(0, 400); pintarRegistro();
+    } else if (sub === 'alarma') {
+      alarmas.unshift({ t: Date.now(), m: txt });
+      alarmas = alarmas.slice(0, 50);
+      guardar('dm.alarmas', alarmas);
+      if (!$('#v-alarmas').classList.contains('on')) noLeidas++;
+      pintarAlarmas(); pintarBadge();
+      avisar('⚠ ' + txt);
+    }
+  }
+
+  // ---------- Pantalla de inicio ----------
+  const NOMBRE_VENTEO = {
+    cerrado: ['Cerrado', 'azul'], abierto: ['Abierto', 'verde'], abriendo: ['Abriendo…', 'ambar'],
+    cerrando: ['Cerrando…', 'ambar'], error: ['Error', 'rojo'], desconocido: ['Posición desconocida', 'ambar']
+  };
+  function poner(id, txt, color){ const e = $('#' + id); e.textContent = txt; e.className = 'estado' + (color ? ' ' + color : ''); }
+
+  function pintar(){
+    const s = estado;
+    $('#temp').firstChild.nodeValue = (s && s.temp != null) ? s.temp.toFixed(1) : '--';
+    $('#hum').firstChild.nodeValue  = (s && s.hum  != null) ? Math.round(s.hum) : '--';
+
+    if (online === true)  poner('online', 'En línea', 'verde');
+    else if (online === false) poner('online', 'Desconectado', 'rojo');
+    else poner('online', '—');
+
+    if (!s) return;
+    const v = NOMBRE_VENTEO[s.venteo] || [s.venteo, ''];
+    poner('venteo', v[0] + (s.clima_cierre ? ' (alerta SMN)' : ''), s.clima_cierre ? 'rojo' : v[1]);
+    const cuR = cuEst && cuCfg && cuEst.r >= 0 ? cuCfg[cuEst.r] : null;
+    poner('riego', s.riego === 'on' ? 'Regando' + (cuR ? ': ' + cuR.n : '') : 'Apagado', s.riego === 'on' ? 'azul' : '');
+    poner('sensor', s.sensor_ok ? 'OK' : 'Sin lectura', s.sensor_ok ? 'verde' : 'rojo');
+
+    const auto = s.modo === 'auto';
+    $$('#modo button').forEach(b => b.classList.toggle('on', b.dataset.modo === s.modo));
+    $$('[data-manual]').forEach(b => b.disabled = auto);
+    $('#modo-nota').textContent = auto
+      ? 'En automático el equipo decide solo. Pasá a manual para mover el venteo o regar.'
+      : 'Modo manual: el equipo no decide nada solo. Acordate de volver a automático.';
+    edad();
+  }
+
+  // Cuánto hace que llegó el último dato (el equipo publica cada 30 s)
+  function edad(){
+    if (!ultimoEstado) return;
+    const s = Math.round((Date.now() - ultimoEstado) / 1000);
+    const n = $('#actualizado');
+    n.textContent = 'Actualizado ' + (s < 5 ? 'recién' : 'hace ' + (s < 60 ? s + ' s' : Math.round(s / 60) + ' min'));
+    n.style.color = s > 120 ? 'var(--sol)' : '';   // amarillo: se lee bien sobre el verde
+  }
+  setInterval(edad, 5000);
+
+  $$('#modo button').forEach(b => b.addEventListener('click', () => {
+    if (ordenar('modo', b.dataset.modo)) avisar(b.dataset.modo === 'auto' ? 'Pasando a automático' : 'Pasando a manual');
+  }));
+  $$('[data-cmd]').forEach(b => b.addEventListener('click', () => {
+    if (ordenar(b.dataset.cmd, b.dataset.msg)) avisar('Orden enviada: ' + b.textContent);
+  }));
+
+
+  // ---------- Gráfico de las últimas horas ----------
+  // El equipo guarda un promedio cada 10 min (48 h) y lo manda en partes cuando se lo pedimos.
+  // Además se suman en vivo los datos que llegan cada 30 s.
+  const MAX_MS = 48 * 3600e3;
+  const graf = {};                               // por equipo: { hist:[], vivo:[], partes:{}, pedido:0 }
+  const G = (id) => graf[id] || (graf[id] = { hist: [], vivo: [], partes: null, pedido: 0, llego: false });
+  let rangoH = leer('dm.rango', 24);
+
+  function pedirHistorial(){
+    if (!cliente || !cliente.connected) return;
+    const g = G(cfg.nodo); g.pedido = Date.now(); g.partes = null;
+    cliente.publish(base() + 'cmd/historial', '1', { qos: 1, retain: false });
+    setTimeout(() => { armarHistorial(cfg.nodo); dibujar(); }, 6000);   // si falta alguna parte, usa lo que llegó
+  }
+  setInterval(pedirHistorial, 15 * 60e3);
+
+  function parteHistorial(m){
+    const g = G(cfg.nodo), ahora = Date.now();
+    if (!g.partes || m.p === 0) g.partes = { de: m.de, recibidas: {}, puntos: [] };
+    g.partes.recibidas[m.p] = true;
+    (m.v || []).forEach((v, k) => {
+      const i = m.desde + k;
+      const t = ahora - (m.edad + (m.n - 1 - i) * m.dt) * 1000;   // hora de cada punto
+      g.partes.puntos[i] = v ? { t, temp: v[0] / 10, hum: v[1] / 10, s: v.slice(2) } : { t, temp: null, hum: null, s: [] };
+    });
+    if (Object.keys(g.partes.recibidas).length >= m.de) { armarHistorial(cfg.nodo); dibujar(); }
+  }
+  function armarHistorial(id){
+    const g = G(id);
+    if (!g.partes) return;
+    g.hist = g.partes.puntos.filter(Boolean);
+    g.partes = null; g.llego = true;
+    const ult = g.hist.length ? g.hist[g.hist.length - 1].t : 0;
+    g.vivo = g.vivo.filter(p => p.t > ult);          // lo viejo ya está en el historial
+  }
+  function puntoVivo(s){
+    const g = G(cfg.nodo), ahora = Date.now();
+    g.vivo.push({ t: ahora, temp: s.temp, hum: s.hum });
+    g.vivo = g.vivo.filter(p => ahora - p.t < MAX_MS);
+    dibujar();
+  }
+
+  $$('#rango button').forEach(b => {
+    b.classList.toggle('on', +b.dataset.h === rangoH);
+    b.addEventListener('click', () => {
+      rangoH = +b.dataset.h; guardar('dm.rango', rangoH);
+      $$('#rango button').forEach(x => x.classList.toggle('on', x === b));
+      dibujar();
+    });
+  });
+
+  let geo = null;                                  // lo necesario para el cursor al tocar
+  function dibujar(){
+    const svg = $('#g-svg'), W = svg.clientWidth || 340, H = 210;
+    const m = { l: 34, r: 34, t: 10, b: 22 }, w = W - m.l - m.r, h = H - m.t - m.b;
+    const g = G(cfg.nodo), ahora = Date.now(), t0 = ahora - rangoH * 3600e3;
+    const ult = g.hist.length ? g.hist[g.hist.length - 1].t : 0;
+    const pts = g.hist.concat(g.vivo.filter(p => p.t > ult)).filter(p => p.t >= t0);
+    const c = cfgEquipo || {};
+
+    // Escala de temperatura: datos + líneas de ajuste, redondeada a números enteros
+    const vt = pts.map(p => p.temp).filter(v => v != null).concat([c.temp_abrir, c.temp_cerrar].filter(v => v != null));
+    let tMin = vt.length ? Math.floor(Math.min(...vt) - 1) : 10, tMax = vt.length ? Math.ceil(Math.max(...vt) + 1) : 35;
+    if (tMax - tMin < 4) { tMax = tMin + 4; }
+    const paso = Math.ceil((tMax - tMin) / 4); tMax = tMin + paso * 4;
+    const X = (t) => m.l + (t - t0) / (ahora - t0) * w;
+    const YT = (v) => m.t + (1 - (v - tMin) / (tMax - tMin)) * h;
+    const YH = (v) => m.t + (1 - v / 100) * h;
+
+    let o = '';
+    for (let i = 0; i <= 4; i++) {                 // rejilla y ejes
+      const y = m.t + i * h / 4;
+      o += `<line class="rejilla" x1="${m.l}" x2="${m.l + w}" y1="${y}" y2="${y}"/>`;
+      o += `<text class="eje" x="${m.l - 5}" y="${y + 3}" text-anchor="end">${tMax - i * paso}°</text>`;
+      o += `<text class="eje" x="${m.l + w + 5}" y="${y + 3}">${100 - i * 25}%</text>`;
+    }
+    const cada = rangoH <= 6 ? 1 : rangoH <= 24 ? 4 : 8;   // marcas de hora
+    const d = new Date(t0); d.setMinutes(0, 0, 0);
+    for (let t = d.getTime() + 3600e3; t < ahora; t += 3600e3) {
+      const hh = new Date(t).getHours();
+      if (hh % cada) continue;
+      o += `<text class="eje" x="${X(t)}" y="${H - 6}" text-anchor="middle">${String(hh).padStart(2, '0')}:00</text>`;
+      o += `<line class="rejilla" x1="${X(t)}" x2="${X(t)}" y1="${m.t + h}" y2="${m.t + h + 4}"/>`;
+    }
+    if (c.temp_abrir != null) [c.temp_abrir, c.temp_cerrar].forEach(v => o += `<line class="spt" x1="${m.l}" x2="${m.l + w}" y1="${YT(v)}" y2="${YT(v)}"/>`);
+    if (c.hum_riego_on != null) [c.hum_riego_on, c.hum_riego_off].forEach(v => o += `<line class="sph" x1="${m.l}" x2="${m.l + w}" y1="${YH(v)}" y2="${YH(v)}"/>`);
+
+    // Líneas: se cortan en los huecos (sensor caído, equipo apagado o más de 25 min sin datos)
+    const linea = (clave, Y) => {
+      let dd = '', ant = null;
+      pts.forEach(p => {
+        if (p[clave] == null) { ant = null; return; }
+        const nuevo = !ant || p.t - ant.t > 25 * 60e3;
+        dd += (nuevo ? 'M' : 'L') + X(p.t).toFixed(1) + ' ' + Y(p[clave]).toFixed(1) + (nuevo ? 'l0 0' : '');   // l0 0: un punto suelto se ve igual
+        ant = p;
+      });
+      return dd;
+    };
+    o += `<path class="lh" d="${linea('hum', YH)}"/><path class="lt" d="${linea('temp', YT)}"/>`;
+    o += `<g id="g-cur" hidden><line class="cursor" y1="${m.t}" y2="${m.t + h}"/><circle class="pt" r="3.5"/><circle class="ph" r="3.5"/></g>`;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = o;
+    $('#g-tip').hidden = true;
+    geo = { pts, X, YT, YH, m, w };
+
+    const nota = $('#g-nota');
+    if (c.hist === undefined && cfgEquipo) nota.textContent = 'Este equipo no guarda historial: el gráfico muestra desde que abriste la app.';
+    else if (!pts.length) nota.textContent = g.llego ? 'Todavía no hay datos guardados: el equipo guarda un punto cada 10 minutos.' : 'Cargando historial…';
+    else nota.textContent = 'Tocá el gráfico para ver el valor de cada momento.';
+  }
+
+  // Cursor: tocar o arrastrar sobre el gráfico muestra hora, temperatura y humedad
+  function cursor(ev){
+    if (!geo || !geo.pts.length) return;
+    const svg = $('#g-svg'), r = svg.getBoundingClientRect();
+    const x = (ev.clientX - r.left) * (svg.viewBox.baseVal.width / r.width);
+    let mejor = null, dist = Infinity;
+    geo.pts.forEach(p => { if (p.temp == null) return; const dd = Math.abs(geo.X(p.t) - x); if (dd < dist) { dist = dd; mejor = p; } });
+    if (!mejor) return;
+    const cx = geo.X(mejor.t), cur = $('#g-cur');
+    cur.removeAttribute('hidden');
+    cur.querySelector('line').setAttribute('x1', cx); cur.querySelector('line').setAttribute('x2', cx);
+    const [ct, ch] = cur.querySelectorAll('circle');
+    ct.setAttribute('cx', cx); ct.setAttribute('cy', geo.YT(mejor.temp));
+    ch.setAttribute('cx', cx); ch.setAttribute('cy', geo.YH(mejor.hum));
+    const tip = $('#g-tip'), px = cx * r.width / svg.viewBox.baseVal.width;
+    tip.hidden = false;
+    tip.textContent = new Date(mejor.t).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }) +
+      ' · ' + mejor.temp.toFixed(1).replace('.', ',') + ' °C · ' + Math.round(mejor.hum) + ' %';
+    tip.style.left = Math.min(Math.max(px, 70), r.width - 70) + 'px';
+  }
+  let ocultarT;
+  const svgG = $('#g-svg');
+  svgG.addEventListener('pointerdown', (e) => { clearTimeout(ocultarT); cursor(e); });
+  svgG.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType === 'mouse') cursor(e); });
+  const ocultar = () => { ocultarT = setTimeout(() => { $('#g-tip').hidden = true; const c = $('#g-cur'); if (c) c.setAttribute('hidden', ''); }, 2500); };
+  svgG.addEventListener('pointerup', ocultar);
+  svgG.addEventListener('pointerleave', ocultar);
+  window.addEventListener('resize', () => { dibujar(); pintarEquipos(); dibujarSuelo(); });
+  setInterval(dibujar, 60e3);                      // corre el eje de tiempo aunque no lleguen datos
+
+
+  // ---------- Alertas meteorológicas (SMN) ----------
+  // Las publica el robot de GitHub cada 15 min en vivero/clima/alerta (retenido).
+  let clima = null, climaCelu = [], climaAbierto = false;   // clima = lo del robot por MQTT; climaCelu = lo que revisa el celular
+  const vistasClima = new Set(leer('dm.climaVistas', []));
+  const NIVEL_TXT = { amarillo: 'Alerta amarilla', naranja: 'Alerta naranja', rojo: 'Alerta roja', otro: 'Aviso' };
+  const horaCorta = (ep) => new Date(ep * 1000).toLocaleString('es-AR', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+
+  function climaRecibir(c){ clima = c; registrarAlertas(c.alertas || []); pintarClima(); }
+  function alertasCelu(l){ climaCelu = l; registrarAlertas(l); pintarClima(); }
+  function todasAlertas(){
+    const m = {};
+    ((clima && clima.alertas) || []).concat(climaCelu).forEach(a => { m[a.id] = a; });
+    return Object.values(m);
+  }
+  function registrarAlertas(lista){
+    lista.forEach(a => {                 // cada alerta nueva va una vez a la lista de Alarmas
+      if (vistasClima.has(a.id)) return;
+      vistasClima.add(a.id);
+      alarmas.unshift({ t: Date.now(), m: '🌩 ' + NIVEL_TXT[a.nivel] + ' (' + (a.fuente || 'SMN') + '): ' + a.evento + ' hasta ' + horaCorta(a.hasta) });
+      alarmas = alarmas.slice(0, 50);
+      if (!$('#v-alarmas').classList.contains('on')) noLeidas++;
+      avisar('🌩 ' + NIVEL_TXT[a.nivel] + ': ' + a.evento);
+    });
+    guardar('dm.climaVistas', Array.from(vistasClima).slice(-100));
+    guardar('dm.alarmas', alarmas); pintarAlarmas(); pintarBadge();
+  }
+  function pintarClima(){
+    const b = $('#clima'), ahora = Date.now() / 1000;
+    const vig = todasAlertas().filter(a => a.hasta > ahora).sort((x, y) => x.desde - y.desde);
+    b.hidden = !vig.length;
+    if (!vig.length) return;
+    const orden = { rojo: 3, naranja: 2, amarillo: 1, otro: 0 };
+    const peor = vig.reduce((x, a) => orden[a.nivel] > orden[x] ? a.nivel : x, 'otro');
+    b.className = 'clima ' + peor;
+    b.innerHTML = '';
+    vig.forEach(a => {
+      const d = document.createElement('div'); d.className = 'al';
+      const t = document.createElement('b'); t.textContent = '⚠ ' + NIVEL_TXT[a.nivel] + ': ' + a.evento;
+      const h = document.createElement('small');
+      h.textContent = (a.desde > ahora ? 'Desde ' + horaCorta(a.desde) + ' · ' : '') + 'Hasta ' + horaCorta(a.hasta) +
+                      (a.cierra && a.fuente !== 'REM' ? ' · cierra el venteo' : '');
+      d.append(t, h);
+      if (climaAbierto) { const p = document.createElement('p'); p.textContent = a.texto; d.append(p); }
+      b.append(d);
+    });
+    const f = document.createElement('div'); f.className = 'fuente';
+    const fuentes = Array.from(new Set(vig.map(a => a.fuente || 'SMN'))).join(' y ');
+    f.textContent = (climaAbierto ? '' : 'Tocá para ver el detalle · ') + 'Fuente: ' + fuentes;
+    b.append(f);
+  }
+  $('#clima').addEventListener('click', () => { climaAbierto = !climaAbierto; pintarClima(); });
+  setInterval(pintarClima, 60e3);                  // que desaparezca sola cuando vence
+
+  $('#clima_cierra').addEventListener('change', (e) => {
+    if (!puedeAdmin()) { e.target.checked = !e.target.checked; avisar('Solo un administrador'); return; }
+    if (ordenar('config/clima_cierra', e.target.checked ? 1 : 0))
+      avisar(e.target.checked ? 'Con alerta se va a cerrar el venteo' : 'Las alertas solo van a avisar');
+  });
+
+
+  // ---------- Clima de afuera (REM) y avisos con la app cerrada ----------
+  // El revisor (runners/clima.js) corre en segundo plano cada 15 min aunque la app esté cerrada:
+  // lee la REM y el SMN y manda la notificación. Acá solo se le piden los datos para mostrarlos.
+  const NATIVO = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const BR  = NATIVO ? window.Capacitor.Plugins.BackgroundRunner : null;
+  const BAT = NATIVO ? window.Capacitor.Plugins.Bateria : null;
+  const RUNNER = 'com.alexis.viverodomovil.clima';
+  let afuera = leer('dm.afuera', null);
+  let climaCfg = Object.assign({ helada: 2, rafaga: 60, avisos: true }, leer('dm.climaCfg', {}));
+  const coma = (v, d = 1) => v == null ? '--' : Number(v).toFixed(d).replace('.', ',');
+  const correr = (event, details) => BR.dispatchEvent({ label: RUNNER, event, details: details || {} });
+
+  // Con la app abierta se lee directo (internet nativo de Android, sin depender del revisor de
+  // segundo plano). Si son datos de hace menos de 10 min, se muestran los guardados.
+  let consultando = false;
+  const CLIMA_ROBOT = 'https://raw.githubusercontent.com/alexis37268-cpu/vivero-pagina/datos/clima.json';   // repo publico de la pagina   // lo deja el robot de GitHub
+  async function actualizarAfuera(forzar){
+    pintarAfuera();
+    if (consultando) return;
+    if (!forzar && afuera && Date.now() / 1000 - afuera.revisado < 10 * 60) return;
+    consultando = true;
+    $('#af-nota').textContent = 'Consultando la REM y el SMN…';
+    try {
+      // Celular: lee la REM directo. PC (navegador): el navegador no deja, se usa el archivo del robot.
+      let r = DEMO ? window.DemoVivero.climaEjemplo() : NATIVO && window.ClimaRevisor ? await window.ClimaRevisor.revisar(new Date(), climaCfg) : null;
+      if (!r || (!r.estacion && !r.pronostico)) {
+        const resp = await fetch(CLIMA_ROBOT + '?t=' + Math.floor(Date.now() / 60e3));
+        if (!resp.ok) throw new Error('archivo del robot: ' + resp.status);
+        r = await resp.json();
+      }
+      // Si una parte falló, se sigue mostrando el último dato bueno de esa parte
+      if (!r.estacion && afuera && afuera.estacion) r.estacion = afuera.estacion;
+      if (!r.pronostico && afuera && afuera.pronostico) r.pronostico = afuera.pronostico;
+      afuera = r; guardar('dm.afuera', r);
+      alertasCelu(r.alertas || []);
+    } catch (e) {
+      afuera = Object.assign({}, afuera || {}, { errores: ['No se pudo consultar: ' + (e && e.message || e)] });
+    }
+    consultando = false;
+    pintarAfuera();
+  }
+  function pintarAfuera(){
+    const r = afuera; if (!r) return;
+    // Datos viejos (el robot se paró o no hay internet): que se vea bien claro
+    const edadMin = r.revisado ? (Date.now() / 1000 - r.revisado) / 60 : 0;
+    let viejo = $('#af-viejo');
+    if (!viejo) { viejo = document.createElement('div'); viejo.id = 'af-viejo'; viejo.className = 'clima-viejo'; $('#c-afuera').insertBefore(viejo, $('#c-afuera').children[1]); }
+    viejo.hidden = edadMin < 45;
+    viejo.textContent = '⚠ Datos del clima de hace ' + (edadMin < 120 ? Math.round(edadMin) + ' min' : Math.round(edadMin / 60) + ' h') +
+      (r.fuente === 'robot' ? ': el robot de GitHub no los actualizó (revisá la pestaña Actions del repo).' : '.');
+    const e = r.estacion;
+    $('#af-temp').textContent   = e ? coma(e.temp) + ' °C' : '--';
+    $('#af-hum').textContent    = e ? Math.round(e.hum) + ' %' : '--';
+    $('#af-viento').textContent = e && e.viento != null ? Math.round(e.viento) + ' km/h ' + e.vientoDir : '--';
+    $('#af-rafaga').textContent = e && e.rafagaHoy != null ? Math.round(e.rafagaHoy) + ' km/h (' + e.rafagaHora + ')' : '—';
+    $('#af-lluvia').textContent = e ? coma(e.lluvia24h) + ' / ' + coma(e.lluvia30d) + ' mm' : '—';
+    $('#af-suelo').textContent  = e && e.suelo && e.suelo.some(v => v != null) ? e.suelo.map(v => coma(v)).join(' / ') + ' °C' : '—';
+    const p = r.pronostico, c = $('#af-pron');
+    c.innerHTML = '';
+    $('#af-pron-tit').textContent = 'Pronóstico' + (p && p.estacion ? ' (' + p.estacion + ')' : '');
+    (p ? p.dias : []).forEach(d => {
+      const div = document.createElement('div');
+      const b = document.createElement('b'); b.textContent = d.dia;
+      const mm = document.createElement('div'); mm.className = 'mm';
+      const fr = document.createElement('span'); fr.className = 'fr'; fr.textContent = coma(d.min, 0) + '°';
+      const ca = document.createElement('span'); ca.className = 'ca'; ca.textContent = coma(d.max, 0) + '°';
+      mm.append(fr, document.createTextNode(' / '), ca);
+      const s = document.createElement('small'); s.textContent = d.cielo + (d.lluvia ? ' · prob. lluvia' : '');
+      div.append(b, mm, s); c.append(div);
+    });
+    const h = r.revisado ? new Date(r.revisado * 1000).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '--';
+    const err = r.errores && r.errores.length ? '⚠ ' + r.errores.join(' · ') + '. ' : '';
+    $('#af-nota').textContent = err + (e ? 'Estación ' + e.nombre + ' (dato de las ' + e.hora + ')' + (e.vientoDe ? ', viento y suelo de ' + e.vientoDe : '') + ' · ' : '') +
+      'revisado ' + h + ' · Fuente: REM, Gobierno de San Luis';
+    $('#af-nota').style.color = err ? 'var(--rojo)' : '';
+  }
+  $('#af-act').addEventListener('click', () => actualizarAfuera(true));
+  setInterval(pintarAfuera, 60e3);
+
+  // Permisos: notificaciones + que Android no frene la app (batería)
+  const MARCAS_AUTO = /xiaomi|redmi|poco|oppo|realme|vivo|huawei|honor|samsung/;
+  async function estadoPermisos(){
+    if (!BR) return null;
+    let notif = 'prompt', bat = { libre: true, marca: '' };
+    try { notif = (await BR.checkPermissions()).notifications; } catch (e) {}
+    try { if (BAT) bat = await BAT.estado(); } catch (e) {}
+    return { notif: notif === 'granted', bateria: !!bat.libre, marca: bat.marca || '' };
+  }
+  async function pintarPermisos(){
+    const st = await estadoPermisos(); if (!st) return;
+    const todo = st.notif && st.bateria;
+    $('#c-permisos').hidden = todo || !climaCfg.avisos;
+    $('#perm-auto').hidden = !MARCAS_AUTO.test(st.marca);
+    const txt = (st.notif ? '✔ Notificaciones' : '✖ Notificaciones') + ' · ' + (st.bateria ? '✔ Sin límite de batería' : '✖ Android puede frenar la app');
+    $('#perm-nota').textContent = txt;
+    $('#cl-permisos').innerHTML = '';
+    const sp = document.createElement('span'); sp.className = todo ? 'ok-txt' : 'mal-txt'; sp.textContent = txt;
+    $('#cl-permisos').append(sp);
+    if (MARCAS_AUTO.test(st.marca)) $('#cl-permisos').append(document.createTextNode(' · En tu marca de celular revisá también «Inicio automático».'));
+  }
+  async function pedirPermisos(){
+    if (!BR) return;
+    try { const p = await BR.checkPermissions(); if (p.notifications !== 'granted') await BR.requestPermissions({ apis: ['notifications'] }); } catch (e) {}
+    try { if (BAT && !(await BAT.estado()).libre) await BAT.pedir(); } catch (e) {}
+    setTimeout(pintarPermisos, 1500);                // el cartel de batería es otra pantalla: se revisa al volver
+  }
+  $('#perm-activar').addEventListener('click', pedirPermisos);
+  $('#cl-revisar').addEventListener('click', pedirPermisos);
+  $('#perm-auto').addEventListener('click', async () => {
+    try { await BAT.autoinicio(); avisar('Buscá «Vivero Sol Puntano» y activá el inicio automático'); } catch (e) {}
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (BR) pintarPermisos(); actualizarAfuera(false); } });
+
+  // Ajustes de clima
+  function cargarClimaCfg(){
+    $('#f-clima').hidden = !BR;
+    $('#cl-helada').value = climaCfg.helada; $('#cl-rafaga').value = climaCfg.rafaga; $('#cl-avisos').checked = climaCfg.avisos;
+    pintarPermisos();
+  }
+  $('#f-clima').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const h = parseFloat($('#cl-helada').value), r = parseFloat($('#cl-rafaga').value);
+    if (!(h >= -10 && h <= 15) || !(r >= 20 && r <= 150)) { avisar('Helada entre -10 y 15 °C; ráfaga entre 20 y 150 km/h'); return; }
+    climaCfg = { helada: h, rafaga: r, avisos: $('#cl-avisos').checked };
+    guardar('dm.climaCfg', climaCfg);
+    try { if (BR) await correr('guardarConfig', climaCfg); avisar('Ajustes del clima guardados'); } catch (e) { avisar('No se pudo guardar en el revisor de segundo plano'); }
+    actualizarAfuera(true);
+    if (climaCfg.avisos) pedirPermisos(); else pintarPermisos();
+  });
+
+  async function iniciarClima(){
+    actualizarAfuera(false);                         // también alimenta el cartel de alertas de Inicio
+    setInterval(() => actualizarAfuera(true), 15 * 60e3);
+    if (!BR) return;
+    try { await correr('guardarConfig', climaCfg); } catch (e) {}
+    const st = await estadoPermisos();
+    if (climaCfg.avisos && st && !st.notif && !leer('dm.permPedido', false)) { guardar('dm.permPedido', true); await pedirPermisos(); }
+    pintarPermisos();
+  }
+
+
+  // ---------- Usuarios (nombre + PIN) y registro de cambios ----------
+  // La lista vive en el equipo (vivero/nodoN/usuarios). Del PIN solo viaja un resumen (hash).
+  let usuariosEquipo = null, registro = [], regPartes = null, solapa = 'alarmas';
+  let sesiones = leer('dm.sesiones', {});         // por equipo: { nombre, rol, ultimo }
+  let bloqueadoIngreso = false, primerDespues = false;
+  const SESION_MS = 12 * 3600e3;                   // 12 h sin usar = vuelve a pedir PIN
+
+  // SHA-256 chico (sin depender de crypto.subtle). Devuelve los primeros 16 caracteres hex.
+  function sha256hex(txt){
+    const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+    const b = Array.from(new TextEncoder().encode(txt)), l = b.length * 8;
+    b.push(0x80); while (b.length % 64 !== 56) b.push(0);
+    for (let i = 7; i >= 0; i--) b.push(i > 3 ? 0 : (l >>> (i * 8)) & 255);
+    let h = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+    const r = (x, n) => (x >>> n) | (x << (32 - n));
+    for (let o = 0; o < b.length; o += 64) {
+      const w = [];
+      for (let i = 0; i < 16; i++) w[i] = (b[o+4*i] << 24) | (b[o+4*i+1] << 16) | (b[o+4*i+2] << 8) | b[o+4*i+3];
+      for (let i = 16; i < 64; i++) {
+        const s0 = r(w[i-15], 7) ^ r(w[i-15], 18) ^ (w[i-15] >>> 3), s1 = r(w[i-2], 17) ^ r(w[i-2], 19) ^ (w[i-2] >>> 10);
+        w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+      }
+      let [a, bb, c, d, e, f, g, hh] = h;
+      for (let i = 0; i < 64; i++) {
+        const t1 = (hh + (r(e, 6) ^ r(e, 11) ^ r(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i]) | 0;
+        const t2 = ((r(a, 2) ^ r(a, 13) ^ r(a, 22)) + ((a & bb) ^ (a & c) ^ (bb & c))) | 0;
+        hh = g; g = f; f = e; e = (d + t1) | 0; d = c; c = bb; bb = a; a = (t1 + t2) | 0;
+      }
+      h = h.map((v, i) => (v + [a, bb, c, d, e, f, g, hh][i]) | 0);
+    }
+    return h.map(v => (v >>> 0).toString(16).padStart(8, '0')).join('').slice(0, 16);
+  }
+  const hashPin = (nombre, pin) => sha256hex(cfg.nodo + ':' + nombre.trim().toLowerCase() + ':' + pin);
+  const nombreValido = (n) => /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 ._-]{1,16}$/.test(n.trim());
+  const pinValido = (p) => /^\d{4,6}$/.test(p);
+
+  const conUsuarios = () => !!(cfgEquipo && cfgEquipo.usuarios && usuariosEquipo && usuariosEquipo.length);
+  function sesionActual(){
+    const s = sesiones[cfg.nodo];
+    if (!s) return null;
+    if (Date.now() - s.ultimo > SESION_MS) { delete sesiones[cfg.nodo]; guardar('dm.sesiones', sesiones); return null; }
+    if (usuariosEquipo && usuariosEquipo.length && !usuariosEquipo.some(u => u.n.toLowerCase() === s.nombre.toLowerCase() && (NATIVO || u.r === 'admin'))) { delete sesiones[cfg.nodo]; guardar('dm.sesiones', sesiones); return null; }   // lo dieron de baja (o en la PC dejó de ser admin)
+    return s;
+  }
+  function puedeAdmin(){
+    if (!conUsuarios()) return true;                // sin usuarios todo vale (como antes)
+    const s = sesionActual(); if (!s) return false;
+    const u = usuariosEquipo.find(x => x.n.toLowerCase() === s.nombre.toLowerCase());
+    return !!(u && u.r === 'admin');
+  }
+
+  function mostrarVista(v){
+    $$('.vista').forEach(x => x.classList.toggle('on', x.id === 'v-' + v));
+    $$('nav button').forEach(x => x.classList.toggle('on', x.dataset.vista === v));
+  }
+  function revisarAcceso(){
+    const s = sesionActual(), hay = conUsuarios();
+    // Banner para crear el primer administrador
+    $('#f-primer').hidden = !(cfgEquipo && cfgEquipo.usuarios && usuariosEquipo && !usuariosEquipo.length && !primerDespues);
+    // Pantalla de ingreso
+    const pedir = hay && !s;
+    if (pedir && !bloqueadoIngreso) {
+      const sel = $('#ing-usuario'); sel.innerHTML = '';
+      usuariosEquipo.filter(u => NATIVO || u.r === 'admin').forEach(u => { const o = document.createElement('option'); o.value = u.n; o.textContent = u.n + (u.r === 'admin' ? ' (administrador)' : ''); sel.append(o); });
+      const ultimo = leer('dm.ultimoUsuario', ''); if (ultimo) sel.value = ultimo;
+      $('#ing-tit').textContent = (NATIVO ? 'Ingresar a ' : 'Administración · ') + nombreNodo(cfg.nodo);
+      $('#ing-pin').value = '';
+      if (!$('#v-conexion').classList.contains('on') && !$('#v-equipos').classList.contains('on')) mostrarVista('ingreso');
+    }
+    if (!pedir && bloqueadoIngreso && $('#v-ingreso').classList.contains('on')) mostrarVista('inicio');
+    bloqueadoIngreso = pedir;
+    // Encabezado
+    $('#quien').hidden = !(hay && s);
+    if (hay && s) {
+      const u = usuariosEquipo.find(x => x.n.toLowerCase() === s.nombre.toLowerCase());
+      $('#quien-txt').textContent = '👤 ' + s.nombre + (u && u.r === 'admin' ? ' · admin' : ' · operario');
+    }
+    if ($('#v-ajustes').classList.contains('on')) { cargarAjustes(); pintarUsuarios(); }
+  }
+
+  $('#f-ingreso').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const nombre = $('#ing-usuario').value, pin = $('#ing-pin').value;
+    const u = (usuariosEquipo || []).find(x => x.n === nombre);
+    if (!u || hashPin(nombre, pin) !== u.h) { $('#ing-nota').textContent = 'PIN incorrecto.'; $('#ing-nota').style.color = 'var(--rojo)'; $('#ing-pin').value = ''; return; }
+    if (!NATIVO && u.r !== 'admin') { $('#ing-nota').textContent = 'En la PC solo entran administradores. Los operarios usan la app del celular.'; $('#ing-nota').style.color = 'var(--rojo)'; $('#ing-pin').value = ''; return; }
+    sesiones[cfg.nodo] = { nombre: u.n, ultimo: Date.now() }; guardar('dm.sesiones', sesiones);
+    guardar('dm.ultimoUsuario', u.n);
+    $('#ing-nota').textContent = DEMO ? 'Usuarios de prueba: ' + window.DemoVivero.usuarios : 'Pedile el PIN al administrador.'; $('#ing-nota').style.color = '';
+    bloqueadoIngreso = false; mostrarVista('inicio'); revisarAcceso();
+    avisar('Hola, ' + u.n);
+  });
+  $('#ing-volver').addEventListener('click', () => { mostrarVista('equipos'); pintarGrilla(); });
+  $('#salir').addEventListener('click', () => { delete sesiones[cfg.nodo]; guardar('dm.sesiones', sesiones); revisarAcceso(); });
+
+  $('#f-primer').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const n = $('#pr-nombre').value.trim(), p = $('#pr-pin').value;
+    if (!nombreValido(n)) { avisar('Nombre: hasta 16 letras o números'); return; }
+    if (!pinValido(p)) { avisar('El PIN va de 4 a 6 números'); return; }
+    sesiones[cfg.nodo] = { nombre: n, ultimo: Date.now() }; guardar('dm.sesiones', sesiones);   // queda adentro
+    if (ordenar('usuario/alta', n + ';admin;' + hashPin(n, p))) avisar('Creando administrador…');
+  });
+  $('#pr-despues').addEventListener('click', () => { primerDespues = true; revisarAcceso(); });
+
+  function pintarUsuarios(){
+    const admin = puedeAdmin(), hay = conUsuarios();
+    $('#c-usuarios').hidden = !(cfgEquipo && cfgEquipo.usuarios && hay && admin);
+    $('#f-mipin').hidden = !(hay && sesionActual());
+    const c = $('#usu-lista'); c.innerHTML = '';
+    (usuariosEquipo || []).forEach(u => {
+      const d = document.createElement('div'); d.className = 'usu';
+      const t = document.createElement('div'); t.textContent = u.n + ' ';
+      const sm = document.createElement('small'); sm.textContent = u.r === 'admin' ? 'Administrador' : 'Operario'; t.append(sm);
+      const acc = document.createElement('div'); acc.className = 'acc';
+      const pin = document.createElement('button'); pin.className = 'btn chico'; pin.textContent = 'PIN';
+      pin.addEventListener('click', () => {
+        const p = prompt('PIN nuevo para ' + u.n + ' (4 a 6 números)');
+        if (p === null) return;
+        if (!pinValido(p)) { avisar('El PIN va de 4 a 6 números'); return; }
+        if (ordenar('usuario/pin', u.n + ';' + hashPin(u.n, p))) avisar('PIN de ' + u.n + ' cambiado');
+      });
+      const del = document.createElement('button'); del.className = 'btn chico'; del.textContent = 'Borrar';
+      del.addEventListener('click', () => {
+        if (!confirm('¿Dar de baja a ' + u.n + '?')) return;
+        if (ordenar('usuario/baja', u.n)) avisar(u.n + ' dado de baja');
+      });
+      acc.append(pin, del); d.append(t, acc); c.append(d);
+    });
+  }
+  $('#f-usuario').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const n = $('#nu-nombre').value.trim(), r = $('#nu-rol').value, p = $('#nu-pin').value;
+    if (!nombreValido(n)) { avisar('Nombre: hasta 16 letras o números'); return; }
+    if (!pinValido(p)) { avisar('El PIN va de 4 a 6 números'); return; }
+    if ((usuariosEquipo || []).some(u => u.n.toLowerCase() === n.toLowerCase()) && !confirm(n + ' ya existe. ¿Cambiar su rol y PIN?')) return;
+    if (ordenar('usuario/alta', n + ';' + r + ';' + hashPin(n, p))) { avisar('Usuario ' + n + ' agregado'); $('#nu-nombre').value = ''; $('#nu-pin').value = ''; }
+  });
+  $('#f-mipin').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const s = sesionActual(), a = $('#mp-nuevo').value, b = $('#mp-otra').value;
+    if (!s) return;
+    if (!pinValido(a)) { avisar('El PIN va de 4 a 6 números'); return; }
+    if (a !== b) { avisar('Los dos PIN no coinciden'); return; }
+    if (ordenar('usuario/pin', s.nombre + ';' + hashPin(s.nombre, a))) { avisar('PIN cambiado'); $('#mp-nuevo').value = ''; $('#mp-otra').value = ''; }
+  });
+
+  // Registro de cambios: "epoch|quien|que"
+  const AJUSTE_TXT = { temp_abrir: 'abre arriba de (°C)', temp_cerrar: 'cierra abajo de (°C)', motor_max_s: 'recorrido del actuador (s)',
+    hum_riego_on: 'riega debajo de (%)', hum_riego_off: 'corta arriba de (%)', riego_max_min: 'riego máximo (min)',
+    riego_pausa_min: 'pausa entre riegos (min)', clima_cierra: 'cerrar con alerta (1 = sí)' };
+  function lineaRegistro(l){
+    const p = String(l).split('|');
+    let a = p.slice(2).join('|').replace(/\b(temp_abrir|temp_cerrar|motor_max_s|hum_riego_on|hum_riego_off|riego_max_min|riego_pausa_min|clima_cierra)\b/g, k => AJUSTE_TXT[k]);
+    a = a.replace(/(\d+)\.0\b/g, '$1').replace(/ C\)/g, ' °C)');
+    const q = p[1] === 'automatico' ? 'automático' : (p[1] || '');
+    return { t: (+p[0] || 0) * 1000, q, a };
+  }
+  function pedirRegistro(){
+    if (!cliente || !cliente.connected) return;
+    if (!(cfgEquipo && cfgEquipo.usuarios)) { pintarRegistro(); return; }
+    regPartes = { de: null, rec: {}, l: [] };
+    cliente.publish(base() + 'cmd/registro', '1', { qos: 1, retain: false });
+    setTimeout(() => { if (regPartes) armarRegistro(); }, 6000);
+  }
+  function parteRegistro(m){
+    if (!regPartes) regPartes = { de: null, rec: {}, l: [] };
+    regPartes.de = m.de; regPartes.rec[m.p] = m.l || [];
+    if (Object.keys(regPartes.rec).length >= m.de) armarRegistro();
+  }
+  function armarRegistro(){
+    const todo = [];
+    Object.keys(regPartes.rec).sort((a, b) => a - b).forEach(k => regPartes.rec[k].forEach(l => todo.push(lineaRegistro(l))));
+    registro = todo.reverse();                         // lo más nuevo arriba
+    regPartes = null; pintarRegistro();
+  }
+  function registroFiltrado(){
+    const q = $('#rf-quien').value, tx = $('#rf-texto').value.trim().toLowerCase();
+    const d = $('#rf-desde').value ? new Date($('#rf-desde').value + 'T00:00:00').getTime() : -Infinity;
+    const h = $('#rf-hasta').value ? new Date($('#rf-hasta').value + 'T23:59:59').getTime() : Infinity;
+    return registro.filter(r => (!q || r.q === q) && (!tx || r.a.toLowerCase().includes(tx) || r.q.toLowerCase().includes(tx)) &&
+                                ((!r.t && d === -Infinity) || (r.t >= d && r.t <= h)));
+  }
+  function pintarRegistro(){
+    const sel = $('#rf-quien'), actual = sel.value;
+    const quienes = Array.from(new Set(registro.map(r => r.q))).sort();
+    sel.innerHTML = '<option value="">Todos</option>';
+    quienes.forEach(q => { const o = document.createElement('option'); o.value = q; o.textContent = q; sel.append(o); });
+    sel.value = quienes.includes(actual) ? actual : '';
+    const c = $('#registro');
+    if (!(cfgEquipo && cfgEquipo.usuarios)) { c.innerHTML = '<p class="nota">Este equipo todavía no guarda el registro de cambios (hay que actualizarle el programa).</p>'; return; }
+    if (!registro.length) { c.innerHTML = '<p class="nota">Sin cambios registrados.</p>'; $('#rf-cuenta').textContent = ''; return; }
+    const lista = registroFiltrado();
+    $('#rf-cuenta').textContent = lista.length === registro.length ? registro.length + ' acciones' : lista.length + ' de ' + registro.length + ' acciones';
+    c.innerHTML = '';
+    lista.slice(0, 300).forEach(r => {
+      const d = document.createElement('div'); d.className = 'reg';
+      const t = document.createElement('time'); t.textContent = r.t ? fecha(new Date(r.t)) : 'sin hora';
+      const q = document.createElement('b'); q.textContent = r.q;
+      q.className = r.q === 'automático' ? 'q-auto' : r.q === 'panel' ? 'q-panel' : '';
+      const a = document.createElement('span'); a.textContent = ' ' + r.a;
+      if (/^rechazado/.test(r.a)) a.className = 'q-rech';
+      d.append(t, q, a); c.append(d);
+    });
+  }
+  $('#reg-act').addEventListener('click', pedirRegistro);
+  ['#rf-quien', '#rf-desde', '#rf-hasta', '#rf-texto'].forEach(id => $(id).addEventListener('input', pintarRegistro));
+  $$('#sol-alarmas button').forEach(b => b.addEventListener('click', () => {
+    solapa = b.dataset.sol;
+    $$('#sol-alarmas button').forEach(x => x.classList.toggle('on', x === b));
+    $('#p-alarmas').hidden = solapa !== 'alarmas'; $('#p-cambios').hidden = solapa !== 'cambios';
+    if (solapa === 'cambios') pedirRegistro();
+  }));
+
+  // ---------- Exportar a Excel (.xlsx real, con varias hojas) ----------
+  // Un .xlsx es un .zip con archivos XML adentro. Se arma acá mismo, sin librerías.
+  const XLSX = (() => {
+    const enc = new TextEncoder();
+    const T = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; T[n] = c >>> 0; }
+    const crc32 = (b) => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+    function zip(files){                       // zip sin comprimir ("store"): Excel lo abre igual
+      const partes = [], central = []; let off = 0;
+      files.forEach(f => {
+        const nm = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length;
+        const h = new DataView(new ArrayBuffer(30));
+        h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(12, 0x21, true);
+        h.setUint32(14, crc, true); h.setUint32(18, sz, true); h.setUint32(22, sz, true); h.setUint16(26, nm.length, true);
+        partes.push(new Uint8Array(h.buffer), nm, f.data);
+        const c = new DataView(new ArrayBuffer(46));
+        c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(14, 0x21, true);
+        c.setUint32(16, crc, true); c.setUint32(20, sz, true); c.setUint32(24, sz, true); c.setUint16(28, nm.length, true); c.setUint32(42, off, true);
+        central.push(new Uint8Array(c.buffer), nm);
+        off += 30 + nm.length + sz;
+      });
+      const cs = central.reduce((a, x) => a + x.length, 0);
+      const e = new DataView(new ArrayBuffer(22));
+      e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cs, true); e.setUint32(16, off, true);
+      const todo = partes.concat(central, [new Uint8Array(e.buffer)]);
+      const out = new Uint8Array(todo.reduce((a, x) => a + x.length, 0)); let p = 0;
+      todo.forEach(x => { out.set(x, p); p += x.length; });
+      return out;
+    }
+    const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+    const col = (n) => { let r = ''; n++; while (n) { const m = (n - 1) % 26; r = String.fromCharCode(65 + m) + r; n = Math.floor((n - 1) / 26); } return r; };
+    const H = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+    function hoja(filas, anchos){
+      let x = H + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>';
+      if (anchos) x += '<cols>' + anchos.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>';
+      x += '<sheetData>';
+      filas.forEach((f, r) => {
+        x += `<row r="${r + 1}">`;
+        f.forEach((v, c) => {
+          if (v === null || v === undefined || v === '') return;
+          const ref = col(c) + (r + 1), st = r === 0 ? ' s="1"' : '';
+          x += typeof v === 'number' && isFinite(v) ? `<c r="${ref}"${st}><v>${v}</v></c>` : `<c r="${ref}" t="inlineStr"${st}><is><t xml:space="preserve">${esc(v)}</t></is></c>`;
+        });
+        x += '</row>';
+      });
+      return x + '</sheetData></worksheet>';
+    }
+    function libro(hojas){
+      const f = (name, txt) => ({ name, data: enc.encode(txt) });
+      return zip([
+        f('[Content_Types].xml', H + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+          hojas.map((h, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') + '</Types>'),
+        f('_rels/.rels', H + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'),
+        f('xl/workbook.xml', H + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' +
+          hojas.map((h, i) => `<sheet name="${esc(h.nombre.slice(0, 31))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets></workbook>'),
+        f('xl/_rels/workbook.xml.rels', H + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          hojas.map((h, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') +
+          `<Relationship Id="rId${hojas.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`),
+        f('xl/styles.xml', H + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'),
+        ...hojas.map((h, i) => f(`xl/worksheets/sheet${i + 1}.xml`, hoja(h.filas, h.anchos)))
+      ]);
+    }
+    return { libro };
+  })();
+
+  const dia = (ms) => ms ? new Date(ms).toLocaleDateString('es-AR') : 'sin hora';
+  const hhmm = (ms) => ms ? new Date(ms).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+  const redondo = (v, d = 1) => v == null || isNaN(v) ? '' : Math.round(v * 10 ** d) / 10 ** d;
+  const esperar = (ms) => new Promise(r => setTimeout(r, ms));
+
+  async function exportarExcel(){
+    avisar('Juntando los datos…');
+    // Pedir al equipo lo que falte (historial, registro, riegos)
+    if (cliente && cliente.connected) {
+      pedirHistorial();
+      if (cfgEquipo && cfgEquipo.usuarios && !registro.length) pedirRegistro();
+      if (nCultivos() && !riegos.length) pedirRiegos();
+      await esperar(2500);
+    }
+    const eq = nombreNodo(cfg.nodo), hojas = [];
+    const g = G(cfg.nodo), ult = g.hist.length ? g.hist[g.hist.length - 1].t : 0;
+    const pts = g.hist.concat(g.vivo.filter(p => p.t > ult));
+    const nc = cuCfg ? cuCfg.length : 0;
+    hojas.push({ nombre: 'Temp y humedad', anchos: [12, 8, 14, 13].concat(Array(nc).fill(16)),
+      filas: [['Fecha', 'Hora', 'Temperatura °C', 'Humedad aire %'].concat((cuCfg || []).map(c => 'Suelo ' + c.n + ' %'))]
+        .concat(pts.filter(p => p.temp != null).map(p => [dia(p.t), hhmm(p.t), redondo(p.temp), redondo(p.hum, 0)].concat((p.s || []).slice(0, nc).map(v => v == null ? '' : v)))) });
+    if (nc) {
+      hojas.push({ nombre: 'Riegos', anchos: [12, 8, 8, 16, 10, 10, 14, 34],
+        filas: [['Fecha', 'Inicio', 'Fin', 'Cultivo', 'Litros', 'Minutos', 'Quién', 'Motivo del corte']]
+          .concat(riegos.slice().reverse().map(r => [dia(r.ini), hhmm(r.ini), hhmm(r.fin), r.c, redondo(r.l), redondo(r.seg / 60), r.q, r.mot])) });
+      const ce = (cuEst && cuEst.c) || [];
+      hojas.push({ nombre: 'Litros por cultivo', anchos: [18, 12, 12, 12, 18, 30],
+        filas: [['Cultivo', 'Hoy (L)', 'Este mes (L)', 'Total (L)', 'Humedad suelo %', 'Riega']]
+          .concat(cuCfg.map((c, i) => [c.n, redondo(ce[i] && ce[i].lh), redondo(ce[i] && ce[i].lm), redondo(ce[i] && ce[i].lt),
+                                       ce[i] && ce[i].s != null ? Math.round(ce[i].s) : '', 'debajo de ' + c.on + ' %, corta por ' + CORTE_TXT[c.m]])) });
+    }
+    if (registro.length) hojas.push({ nombre: 'Cambios', anchos: [12, 8, 16, 60],
+      filas: [['Fecha', 'Hora', 'Quién', 'Qué']].concat(registroFiltrado().slice().reverse().map(r => [dia(r.t), hhmm(r.t), r.q, r.a])) });
+    if (afuera && (afuera.estacion || afuera.pronostico)) {
+      const e = afuera.estacion, p = afuera.pronostico;
+      const f = [['Dato', 'Valor']];
+      if (e) f.push(['Estación', 'REM ' + e.nombre + ' (' + e.hora + ')' + (e.vientoDe ? '; viento y suelo: ' + e.vientoDe : '')], ['Temperatura °C', e.temp], ['Humedad %', e.hum], ['Viento km/h', e.viento],
+                    ['Ráfaga máx. hoy km/h', e.rafagaHoy], ['Lluvia 24 h mm', e.lluvia24h], ['Lluvia 30 días mm', e.lluvia30d],
+                    ['Suelo 5 cm °C', e.suelo[0]], ['Suelo 10 cm °C', e.suelo[1]], ['Suelo 30 cm °C', e.suelo[2]]);
+      if (p) p.dias.forEach(d => f.push(['Pronóstico ' + d.dia + ' (' + p.estacion + ')', d.min + ' / ' + d.max + ' °C, ' + d.cielo + (d.lluvia ? ', prob. lluvia' : '')]));
+      f.push(['Fuente', 'REM, Gobierno de San Luis']);
+      hojas.push({ nombre: 'Clima', anchos: [34, 46], filas: f });
+    }
+    const datos = XLSX.libro(hojas);
+    const nombre = eq.replace(/\W+/g, '-') + '-' + new Date().toISOString().slice(0, 10) + '.xlsx';
+    const P = window.Capacitor && window.Capacitor.Plugins;
+    if (NATIVO && P && P.Filesystem && P.Share) {
+      try {
+        let b64 = ''; for (let i = 0; i < datos.length; i += 0x8000) b64 += String.fromCharCode.apply(null, datos.subarray(i, i + 0x8000));
+        const w = await P.Filesystem.writeFile({ path: nombre, data: btoa(b64), directory: 'CACHE' });
+        await P.Share.share({ title: 'Datos ' + eq, url: w.uri, dialogTitle: 'Enviar o guardar el Excel' });
+      } catch (e) { if (!/cancel/i.test(String(e && e.message || e))) avisar('No se pudo exportar: ' + (e && e.message || e)); }
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([datos], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = nombre; document.body.append(a); a.click(); a.remove();
+  }
+  $('#reg-exportar').addEventListener('click', exportarExcel);
+  $('#cu-exportar').addEventListener('click', exportarExcel);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) revisarAcceso(); });
+
+
+  // ---------- Cultivos (riego por sectores, de a uno, con un caudalímetro) ----------
+  // Topics: cultivos (estado), cultivos/config (ajustes), riegos (registro de riegos).
+  let cuCfg = null, cuEst = null, cuSel = leer('dm.cuSel', 0), cuEditando = false;
+  let riegos = [], riegosPartes = null, cuVivo = {};
+  const CORTE_TXT = ['humedad', 'litros', 'humedad o litros'];
+  const nCultivos = () => (cfgEquipo && cfgEquipo.cultivos) || 0;
+  const fmt1 = (v) => v == null ? '--' : Number(v).toFixed(1).replace('.', ',');
+
+  function navCultivos(){
+    const hay = nCultivos() > 0;
+    $('nav button[data-vista=cultivos]').hidden = !hay;
+    if (!hay && $('#v-cultivos').classList.contains('on')) mostrarVista('inicio');
+    if (cuSel >= nCultivos()) cuSel = 0;
+  }
+  function vivoCultivos(){                          // puntos en vivo para el gráfico de suelo
+    const ahora = Date.now();
+    (cuEst.c || []).forEach((c, i) => {
+      const l = cuVivo[i] || (cuVivo[i] = []);
+      if (c.s != null && (!l.length || ahora - l[l.length - 1].t > 60e3)) l.push({ t: ahora, s: c.s, r: cuEst.r === i });
+      cuVivo[i] = l.filter(p => ahora - p.t < MAX_MS);
+    });
+  }
+  function pintarCultivos(){
+    navCultivos();
+    const n = nCultivos(); if (!n || !cuCfg) return;
+    const e = cuEst || { r: -1, c: [] };
+    // Resumen
+    $('#cu-modo').textContent = estado ? (estado.modo === 'auto' ? 'Automático' : 'Manual') : '—';
+    $('#cu-modo').className = 'pill ' + (estado && estado.modo === 'auto' ? 'ok' : 'aviso');
+    $('#cu-estado').textContent = e.r >= 0
+      ? 'Regando ' + cuCfg[e.r].n + ' · ' + fmt1(e.q) + ' L/min · ' + fmt1(e.lr) + ' L en ' + Math.floor((e.rs || 0) / 60) + ' min'
+      : 'Ningún cultivo regando' + (e.lsv > 2 ? ' · ⚠ pasó agua sin válvula abierta (' + fmt1(e.lsv) + ' L hoy)' : '');
+    // Solapas
+    const tabs = $('#cu-tabs'); tabs.innerHTML = '';
+    cuCfg.forEach((c, i) => {
+      const b = document.createElement('button'); b.className = 'equipo' + (i === cuSel ? ' on' : '');
+      const est = e.c[i] || {}, dot = document.createElement('i');
+      dot.className = e.r === i ? 'reg' : !est.ok ? 'mal' : est.s != null && est.s <= c.on ? 'seco' : 'ok';
+      b.append(dot, document.createTextNode(c.n));
+      b.addEventListener('click', () => { cuSel = i; guardar('dm.cuSel', i); cuEditando = false; pintarCultivos(); cargarCultivoCfg(); pintarRiegos(); });
+      tabs.append(b);
+    });
+    // Ficha del cultivo elegido
+    const c = cuCfg[cuSel], est = e.c[cuSel] || {};
+    $('#cu-nombre').textContent = c.n;
+    const reg = e.r === cuSel;
+    $('#cu-pill').textContent = reg ? 'Regando' : 'Válvula cerrada';
+    $('#cu-pill').className = 'pill ' + (reg ? 'ok' : '');
+    $('#cu-suelo').firstChild.nodeValue = est.ok && est.s != null ? Math.round(est.s) : '--';
+    $('#cu-lhoy').firstChild.nodeValue = est.lh != null ? fmt1(est.lh) : '--';
+    $('#cu-lmes').textContent = est.lm != null ? fmt1(est.lm) + ' / ' + fmt1(est.lt) + ' L' : '—';
+    $('#cu-regla').textContent = c.a
+      ? 'debajo de ' + c.on + ' %, corta por ' + CORTE_TXT[c.m] + (c.m !== 1 ? ' (' + c.off + ' %)' : '') + (c.m !== 0 ? ' (' + c.l + ' L)' : '')
+      : 'solo a mano (automático desactivado)';
+    $('#cu-curso').textContent = reg ? fmt1(e.lr) + ' L · ' + fmt1(e.q) + ' L/min · ' + Math.floor((e.rs || 0) / 60) + ' min' : '—';
+    $('#cu-regar').disabled = !estado || estado.modo === 'auto';
+    dibujarSuelo();
+    const bloq = !puedeAdmin();
+    $$('#f-cultivo input, #f-cultivo select, #f-cultivo button').forEach(x => x.disabled = bloq);
+    $('#cf-admin').hidden = !bloq;
+  }
+  function cargarCultivoCfg(){
+    if (!cuCfg || !cuCfg[cuSel]) return;
+    const c = cuCfg[cuSel];
+    $('#cf-nombre').value = c.n; $('#cf-modo').value = c.m; $('#cf-on').value = c.on; $('#cf-off').value = c.off;
+    $('#cf-litros').value = c.l; $('#cf-max').value = c.t; $('#cf-activo').checked = !!c.a;
+    cuEditando = false;
+  }
+  $('#f-cultivo').addEventListener('input', () => cuEditando = true);
+  $('#f-cultivo').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    if (!puedeAdmin()) { avisar('Solo un administrador'); return; }
+    const n = $('#cf-nombre').value.trim(), on = +$('#cf-on').value, off = +$('#cf-off').value, l = +$('#cf-litros').value, t = +$('#cf-max').value;
+    if (!nombreValido(n)) { avisar('Nombre: hasta 16 letras o números'); return; }
+    if (!(on >= 0 && off <= 100 && on < off)) { avisar('«Riega debajo de» tiene que ser menor que «Corta arriba de»'); return; }
+    if (!(l >= 1 && l <= 5000)) { avisar('Litros entre 1 y 5000'); return; }
+    if (!(t >= 1 && t <= 240)) { avisar('Máximo entre 1 y 240 min'); return; }
+    const msg = 'n=' + n + ',m=' + $('#cf-modo').value + ',on=' + on + ',off=' + off + ',l=' + l + ',t=' + t + ',a=' + ($('#cf-activo').checked ? 1 : 0);
+    if (ordenar('cultivo/' + (cuSel + 1) + '/config', msg)) { avisar('Ajustes de ' + n + ' enviados'); cuEditando = false; }
+  });
+  $('#cu-regar').addEventListener('click', () => { if (ordenar('cultivo/' + (cuSel + 1) + '/regar', 'on')) avisar('Regando ' + cuCfg[cuSel].n); });
+  $('#cu-cortar').addEventListener('click', () => { if (ordenar('cultivo/' + (cuSel + 1) + '/regar', 'off')) avisar('Cortando el riego'); });
+
+  // Gráfico de humedad de suelo del cultivo elegido (48 h) con las líneas de riega/corta
+  function dibujarSuelo(){
+    const svg = $('#cu-svg'); if (!svg || !cuCfg) return;
+    const W = svg.clientWidth || 340, H = 150, m = { l: 40, r: 10, t: 10, b: 18 }, w = W - m.l - m.r, h = H - m.t - m.b;
+    const ahora = Date.now(), t0 = ahora - 48 * 3600e3, g = G(cfg.nodo), i = cuSel, c = cuCfg[i];
+    const pts = g.hist.filter(p => p.s && p.s[i] != null).map(p => ({ t: p.t, s: p.s[i] }));
+    const ult = pts.length ? pts[pts.length - 1].t : 0;
+    (cuVivo[i] || []).filter(p => p.t > ult).forEach(p => pts.push(p));
+    const X = (t) => m.l + (t - t0) / (ahora - t0) * w, Y = (v) => m.t + (1 - v / 100) * h;
+    let o = '';
+    [0, 50, 100].forEach(v => { o += `<line class="rejilla" x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}"/><text class="eje" x="${m.l - 4}" y="${Y(v) + 3}" text-anchor="end">${v}%</text>`; });
+    for (let k = 1; k < 48; k++) { const tt = t0 + k * 3600e3, hh = new Date(tt).getHours(); if (hh % 12) continue;
+      o += `<text class="eje" x="${X(tt)}" y="${H - 4}" text-anchor="middle">${String(hh).padStart(2, '0')}:00</text>`; }
+    o += `<line class="spt" style="stroke:var(--azul)" x1="${m.l}" x2="${m.l + w}" y1="${Y(c.on)}" y2="${Y(c.on)}"/>`;
+    if (c.m !== 1) o += `<line class="spt" style="stroke:var(--verde)" x1="${m.l}" x2="${m.l + w}" y1="${Y(c.off)}" y2="${Y(c.off)}"/>`;
+    // franjas de riego (del registro de riegos)
+    riegos.filter(r => r.c === c.n && r.fin > t0).forEach(r => {
+      const x1 = X(Math.max(r.ini, t0)), x2 = X(Math.min(r.fin || ahora, ahora));
+      o += `<rect class="lr" x="${x1}" y="${m.t}" width="${Math.max(2, x2 - x1)}" height="${h}"/>`;
+    });
+    let d = '', ant = null;
+    pts.forEach(p => { d += (!ant || p.t - ant.t > 25 * 60e3 ? 'M' : 'L') + X(p.t).toFixed(1) + ' ' + Y(p.s).toFixed(1) + (!ant || p.t - ant.t > 25 * 60e3 ? 'l0 0' : ''); ant = p; });
+    o += `<path class="ls" d="${d}"/>`;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.innerHTML = o;
+  }
+
+  // Registro de riegos: "inicio|fin|cultivo|litros|segundos|quien|motivo"
+  function lineaRiego(l){
+    const p = String(l).split('|');
+    return { ini: (+p[0] || 0) * 1000, fin: (+p[1] || 0) * 1000, c: p[2] || '', l: parseFloat(p[3]) || 0, seg: +p[4] || 0,
+             q: p[5] === 'automatico' ? 'automático' : (p[5] || ''), mot: p.slice(6).join('|') };
+  }
+  function pedirRiegos(){
+    if (!cliente || !cliente.connected || !nCultivos()) return;
+    riegosPartes = { rec: {} };
+    cliente.publish(base() + 'cmd/riegos', '1', { qos: 1, retain: false });
+    setTimeout(() => { if (riegosPartes) armarRiegos(); }, 6000);
+  }
+  function parteRiegos(m){
+    if (!riegosPartes) riegosPartes = { rec: {} };
+    riegosPartes.rec[m.p] = m.l || [];
+    if (Object.keys(riegosPartes.rec).length >= m.de) armarRiegos();
+  }
+  function armarRiegos(){
+    const todo = [];
+    Object.keys(riegosPartes.rec).sort((a, b) => a - b).forEach(k => riegosPartes.rec[k].forEach(l => todo.push(lineaRiego(l))));
+    riegos = todo.reverse(); riegosPartes = null; pintarRiegos();
+  }
+  function pintarRiegos(){
+    const c = $('#cu-riegos'); if (!c || !cuCfg) return;
+    const nombre = cuCfg[cuSel] && cuCfg[cuSel].n, lista = riegos.filter(r => r.c === nombre).slice(0, 15);
+    if (!lista.length) { c.innerHTML = '<p class="nota">Sin riegos registrados para este cultivo.</p>'; dibujarSuelo(); return; }
+    c.innerHTML = '';
+    lista.forEach(r => {
+      const d = document.createElement('div'); d.className = 'riego-item';
+      const b = document.createElement('b'); b.textContent = fmt1(r.l) + ' L en ' + Math.round(r.seg / 60) + ' min';
+      const sm = document.createElement('small'); sm.textContent = (r.ini ? fecha(new Date(r.ini)) : 'sin hora') + ' · ' + r.q + ' · ' + r.mot;
+      d.append(b, sm); c.append(d);
+    });
+    dibujarSuelo();
+  }
+  $('#cu-riegos-act').addEventListener('click', pedirRiegos);
+
+  // ---------- Ajustes ----------
+  // Mismos límites que valida el ESP32 (si no, lo rechaza y manda alarma)
+  const CAMPOS = ['temp_abrir','temp_cerrar','motor_max_s','hum_riego_on','hum_riego_off','riego_max_min','riego_pausa_min'];
+  let editando = false;
+  $('#f-ajustes').addEventListener('input', () => editando = true);
+
+  function cargarAjustes(){
+    editando = false;
+    if (!cfgEquipo) { $('#ajustes-nota').textContent = 'Todavía no llegaron los valores del equipo.'; return; }
+    CAMPOS.forEach(k => { $('#' + k).value = cfgEquipo[k]; });
+    $('#lbl-motor').textContent = cfgEquipo.recorrido ? 'Tiempo de recorrido del actuador (s)' : 'Tiempo máximo del motor (s)';
+    $('#clima-ajuste').hidden = cfgEquipo.clima_cierra === undefined;      // equipos viejos u hibernáculo
+    const bloqueado = !puedeAdmin();
+    $$('#f-ajustes input, #f-ajustes button').forEach(e => e.disabled = bloqueado);
+    $('#ajustes-admin').hidden = !bloqueado;
+    $('#clima_cierra').checked = cfgEquipo.clima_cierra === 1;
+    $('#ajustes-nota').textContent = 'Los valores quedan guardados en el equipo, aunque se corte la luz.';
+    cargarNombre();
+  }
+  $('#ajustes-recargar').addEventListener('click', () => { ordenar('estado', '1'); cargarAjustes(); });
+  function cargarNombre(){
+    const f = $('#f-nombre');
+    f.hidden = !(cfgEquipo && cfgEquipo.renombrar && puedeAdmin());     // solo equipos que lo permiten, y administradores
+    if (!f.hidden && document.activeElement !== $('#eq-nombre')) $('#eq-nombre').value = nombreNodo(cfg.nodo);
+  }
+  $('#f-nombre').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const n = $('#eq-nombre').value.replace(/[|;"\\]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (n.length < 2) { avisar('El nombre es muy corto'); return; }
+    if (ordenar('nombre', n)) avisar('Nombre enviado al equipo');
+  });
+
+  function validar(n){
+    const err = [];
+    if (!(n.temp_abrir >= -10 && n.temp_abrir <= 60)) err.push('La temperatura de abrir va entre -10 y 60 °C.');
+    if (!(n.temp_cerrar >= -10 && n.temp_cerrar <= 60)) err.push('La temperatura de cerrar va entre -10 y 60 °C.');
+    if (!(n.temp_cerrar < n.temp_abrir - 0.5)) err.push('Cerrar tiene que ser al menos 0,5 °C menos que abrir.');
+    if (!(n.hum_riego_on >= 0 && n.hum_riego_off <= 100 && n.hum_riego_on < n.hum_riego_off)) err.push('La humedad para regar tiene que ser menor que la de cortar (0 a 100 %).');
+    if (!(n.motor_max_s >= 5 && n.motor_max_s <= 600)) err.push('El tiempo del motor / recorrido va entre 5 y 600 s.');
+    if (!(n.riego_max_min >= 1 && n.riego_max_min <= 120)) err.push('El riego máximo va entre 1 y 120 min.');
+    if (!(n.riego_pausa_min >= 0 && n.riego_pausa_min <= 1440)) err.push('La pausa va entre 0 y 1440 min.');
+    return err;
+  }
+
+  $('#f-ajustes').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    if (!puedeAdmin()) { avisar('Solo un administrador puede cambiar los ajustes'); return; }
+    if (!cfgEquipo) { avisar('Todavía no llegaron los valores del equipo'); return; }
+    const n = {};
+    CAMPOS.forEach(k => n[k] = parseFloat($('#' + k).value));
+    const err = validar(n);
+    if (err.length) { $('#ajustes-nota').textContent = err.join(' '); $('#ajustes-nota').style.color = 'var(--rojo)'; return; }
+    $('#ajustes-nota').style.color = '';
+    // Orden de envío: el ESP32 valida cada valor contra los demás, así que si se agranda
+    // un rango primero se mueve el extremo que lo "abre" (ej.: subir abrir antes que cerrar).
+    const cambios = CAMPOS.filter(k => n[k] !== cfgEquipo[k]);
+    if (!cambios.length) { avisar('No hay cambios'); return; }
+    const orden = cambios.sort((a, b) => prioridad(a, n) - prioridad(b, n));
+    let ok = true;
+    orden.forEach(k => { ok = ordenar('config/' + k, n[k]) && ok; });
+    if (ok) { editando = false; avisar('Ajustes enviados'); }
+  });
+  function prioridad(k, n){
+    if (k === 'temp_abrir')    return n.temp_abrir > cfgEquipo.temp_abrir ? 0 : 1;
+    if (k === 'temp_cerrar')   return n.temp_cerrar < cfgEquipo.temp_cerrar ? 0 : 1;
+    if (k === 'hum_riego_off') return n.hum_riego_off > cfgEquipo.hum_riego_off ? 0 : 1;
+    if (k === 'hum_riego_on')  return n.hum_riego_on < cfgEquipo.hum_riego_on ? 0 : 1;
+    return 2;
+  }
+
+  // ---------- Alarmas ----------
+  function pintarAlarmas(){
+    const c = $('#alarmas');
+    if (!alarmas.length) { c.innerHTML = '<p class="nota">Sin alarmas.</p>'; return; }
+    c.innerHTML = '';
+    alarmas.forEach(a => {
+      const d = document.createElement('div'); d.className = 'alarma';
+      const t = document.createElement('time'); t.textContent = fecha(new Date(a.t));
+      const m = document.createElement('div'); m.textContent = a.m;
+      d.append(t, m); c.append(d);
+    });
+  }
+  function pintarBadge(){ const b = $('#badge'); b.hidden = !noLeidas; b.textContent = noLeidas; }
+  $('#alarmas-borrar').addEventListener('click', () => { alarmas = []; guardar('dm.alarmas', alarmas); pintarAlarmas(); });
+
+  // ---------- Pantalla de conexión ----------
+  function cargarConexion(){
+    $('#c-host').value = cfg.host; $('#c-port').value = cfg.port; $('#c-nodo').value = cfg.nodo;
+    $('#c-user').value = cfg.user; $('#c-pass').value = cfg.pass;
+  }
+  $('#f-conexion').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    cfg = {
+      host: $('#c-host').value.trim().replace(/^(wss?|mqtts?):\/\//, '').replace(/[:/].*$/, ''),
+      port: parseInt($('#c-port').value, 10) || 8084,
+      nodo: $('#c-nodo').value.trim() || 'nodo1',
+      user: $('#c-user').value.trim(),
+      pass: $('#c-pass').value
+    };
+    guardar('dm.conexion', cfg);
+    estado = null; online = null; cfgEquipo = null; ultimoEstado = 0; pintarEquipos();
+    conectar();
+    avisar('Conectando…');
+  });
+  $('#c-desconectar').addEventListener('click', () => { desconectar(); avisar('Desconectado'); });
+
+  // ---------- Arranque ----------
+  cargarConexion(); pintarAlarmas(); pintar(); pintarEquipos(); dibujar(); iniciarClima();
+  // PC: registrar el service worker para que el navegador ofrezca "Instalar app"
+  if (!NATIVO && 'serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  // ---------- Modo demostración (se saca borrando demo.js) ----------
+  if (window.DemoVivero) {
+    $('#c-demo').hidden = DEMO;
+    $('#demo-cartel').hidden = !DEMO;
+    if (DEMO) {
+      $('#f-conexion').hidden = true;
+      $('#ing-nota').textContent = 'Usuarios de prueba: ' + window.DemoVivero.usuarios;
+    }
+    const cambiarDemo = (on) => { desconectar(); try { on ? localStorage.setItem('dm.demo', '1') : localStorage.removeItem('dm.demo'); } catch (e) {} location.reload(); };
+    $('#c-demo-btn').addEventListener('click', () => cambiarDemo(true));
+    $('#demo-salir').addEventListener('click', () => cambiarDemo(false));
+    $('#demo-reiniciar').addEventListener('click', () => {
+      if (!confirm('¿Volver la demostración a fábrica? Se borran los usuarios, PINs y ajustes que cambiaste en la demo (el equipo real no se toca).')) return;
+      desconectar(); window.DemoVivero.reiniciar(); location.reload();
+    });
+  }
+  if (DEMO || cfg.pass) conectar();
+  else { pill('aviso', 'Falta configurar'); $('nav button[data-vista=conexion]').click(); }
+})();
+</script>
+
+</body></html>
