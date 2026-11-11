@@ -5,6 +5,9 @@
 //   - Vivero (nodo1): temperatura, humedad, venteo, 5 cultivos con
 //     litros y riegos, usuarios de prueba, registro e historial de 48 h.
 //   - 4 hibernaculos (nodo2 a nodo5) por LoRa, con lo basico.
+//     El "Hibernaculo IMProFoP" (nodo3) ademas tiene usuarios y un cultivo
+//     de hidroponia: sondas de temperatura del agua y EC (Modbus), flotante
+//     de nivel, bomba por ciclos y el pH cargado a mano (no hay sonda).
 //   - Clima de afuera y una alerta de ejemplo.
 //  Usa los mismos mensajes que el equipo real, asi que la app no cambia.
 //
@@ -117,11 +120,44 @@
         cfg: { temp_abrir: 26, temp_cerrar: 22, hum_riego_on: 45, hum_riego_off: 70, motor_max_s: 40, riego_max_min: 10, riego_pausa_min: 30, recorrido: true } }));
     const pubH = (h) => emitir('vivero/' + h.id + '/estado', JSON.stringify(h.st), true);
 
+    // ---------------- Hidroponia (Hibernaculo IMProFoP, nodo3) ----------------
+    // Lo que mide solo: temperatura del agua y EC (sondas Modbus) y nivel (flotante).
+    // El pH lo mide una persona (gotero o medidor de mano) y lo carga en la app.
+    const H3 = HIB[1], B3 = 'vivero/nodo3/';
+    Object.assign(H3.cfg, { usuarios: true, hidro: 1 });
+    // hash = SHA-256 de "nodo3:nombre:PIN" (Admin 1234, Operario 0000)
+    H3.usuarios = [{ n: 'Admin', admin: true, h: 'f43fcc89594b9a9f' }, { n: 'Operario', admin: false, h: '79a86e1bfcaf1087' }];
+    H3.reg = [];
+    const hc = { n: 'Lechuga NFT', b_on: 15, b_off: 45, ph_min: 5.5, ph_max: 6.5, ec_min: 1.2, ec_max: 2.2, ta_max: 26, dias_ph: 3 };
+    const he = { ec: 1.72, ta: 19.5, niv: 'ok', b: 'on', desde: Date.now() - 6 * 60e3 };
+    let hmed = [], hAlarma = {};
+    // Mediciones de los ultimos 10 dias (una por dia, mas o menos a la manana)
+    [[6.0, 1.6], [6.2, 1.7], [6.4, 1.8], [6.8, 1.9, 'alto: se corrigió con ácido'], [6.1, 1.8], [5.9, 1.7], [6.0, 1.7], [6.2, 1.8], [6.1, 1.7]].forEach(([ph, ec, nota], k, a) => {
+      const t = ahoraS() - (a.length - k) * 86400 - 3 * 3600 + Math.round(Math.random() * 1800);
+      hmed.push({ t, ph, ec, q: k % 3 ? 'Operario' : 'Admin', nota: nota || '' });
+    });
+    hmed.forEach(m => H3.reg.push(m.t + '|' + m.q + '|medición manual: pH ' + m.ph.toFixed(2) + ', EC ' + m.ec.toFixed(2)));
+    H3.reg.unshift((ahoraS() - 12 * 86400) + '|Admin|alta de usuario Operario (operario)', (ahoraS() - 12 * 86400 - 60) + '|Admin|alta de usuario Admin (administrador)');
+    const esAdminH = q => H3.usuarios.some(u => u.n.toLowerCase() === (q || '').toLowerCase() && u.admin);
+    const esUsuarioH = q => H3.usuarios.some(u => u.n.toLowerCase() === (q || '').toLowerCase());
+    const registrarH = (q, que) => { const l = ahoraS() + '|' + quienTxt(q) + '|' + que; H3.reg.push(l); H3.reg = H3.reg.slice(-300); emitir(B3 + 'registro/nuevo', l); guardarSim(); };
+    const pubHi = () => emitir(B3 + 'hidro', JSON.stringify({ ta: +he.ta.toFixed(1), ec: +he.ec.toFixed(2), niv: he.niv, b: he.b,
+      bs: Math.max(0, Math.round(((he.b === 'on' ? hc.b_on : hc.b_off) * 60e3 - (Date.now() - he.desde)) / 1000)) }), true);
+    const pubHiCfg = () => emitir(B3 + 'hidro/config', JSON.stringify(hc), true);
+    const pubHiMed = () => emitir(B3 + 'hidro/mediciones', JSON.stringify(hmed.slice(-60)), true);
+    const pubU3 = () => emitir(B3 + 'usuarios', JSON.stringify(H3.usuarios.map(u => ({ n: u.n, r: u.admin ? 'admin' : 'operario', h: u.h }))), true);
+    // Alarma una sola vez cuando entra en falla (y se rearma al volver a normal)
+    function alarmaH(clave, mal, txt) {
+      if (mal && !hAlarma[clave]) { emitir(B3 + 'alarma', txt); registrarH('automatico', 'alarma: ' + txt); }
+      hAlarma[clave] = mal;
+    }
+
     // ---------------- Lo guardado de antes (si hay) ----------------
     function guardarSim() {
       try {
         localStorage.setItem(GUARDA, JSON.stringify({ v: 1, cfg, hib: HIB.map(h => ({ cfg: h.cfg, modo: h.st.modo })), nombre1, cc, usuarios, modo: st.modo, reg: reg.slice(-300), riegos: riegosL.slice(-100),
-          ec: ec.map(e => ({ lh: e.lh, lm: e.lm, lt: e.lt })) }));
+          ec: ec.map(e => ({ lh: e.lh, lm: e.lm, lt: e.lt })),
+          h3: { usuarios: H3.usuarios, reg: H3.reg.slice(-300), hc, hmed: hmed.slice(-100) } }));
       } catch (e) {}
     }
     let previo = null;
@@ -136,16 +172,70 @@
       if (Array.isArray(previo.reg)) reg = previo.reg;
       if (Array.isArray(previo.riegos)) riegosL = previo.riegos;
       if (previo.modo === 'auto' || previo.modo === 'manual') st.modo = previo.modo;
+      const p3 = previo.h3;
+      if (p3) {
+        if (Array.isArray(p3.usuarios) && p3.usuarios.length) H3.usuarios = p3.usuarios;
+        if (Array.isArray(p3.reg)) H3.reg = p3.reg;
+        if (p3.hc) Object.assign(hc, p3.hc);
+        if (Array.isArray(p3.hmed) && p3.hmed.length) hmed = p3.hmed;
+      }
+      Object.assign(H3.cfg, { usuarios: true, hidro: 1 });
     }
 
     function publicarTodo() {
       emitir(B1 + 'online', 'online', true); emitir(B1 + 'nombre', nombre1, true);
       HIB.forEach(h => { emitir('vivero/' + h.id + '/online', 'online', true); emitir('vivero/' + h.id + '/nombre', h.nombre, true); });
       pubC(); pubE(); pubU(); pubCuCfg(); pubCu();
+      pubU3(); pubHiCfg(); pubHiMed(); pubHi();
       HIB.forEach(h => { emitir('vivero/' + h.id + '/config', JSON.stringify(h.cfg), true); pubH(h); });
     }
 
     // ---------------- Ordenes de la app ----------------
+    // Usuarios (igual en el vivero y en el hibernaculo con usuarios)
+    function cmdUsuario(lista, admin, reg, a, crudo) {
+      const f = crudo.split(';').map(x => x.trim()), q = f[f.length - 1];
+      const k = lista.findIndex(u => u.n.toLowerCase() === (f[0] || '').toLowerCase());
+      if (a === 'alta' && f.length === 4 && admin(q)) {
+        if (k < 0) lista.push({ n: f[0], admin: f[1] === 'admin', h: f[2] }); else Object.assign(lista[k], { admin: f[1] === 'admin', h: f[2] });
+        reg(q, (k < 0 ? 'alta' : 'modifica') + ' de usuario ' + f[0]);
+      } else if (a === 'baja' && f.length === 2 && admin(q) && k >= 0 && lista.filter(u => u.admin).length > (lista[k].admin ? 1 : 0)) {
+        lista.splice(k, 1); reg(q, 'baja de usuario ' + f[0]);
+      } else if (a === 'pin' && f.length === 3 && k >= 0 && (admin(q) || lista[k].n.toLowerCase() === q.toLowerCase())) {
+        lista[k].h = f[1]; reg(q, 'cambia el PIN de ' + lista[k].n);
+      }
+    }
+    const paginas = (top, l) => { const P = 12, de = Math.max(1, Math.ceil(l.length / P)); for (let p = 0; p < de; p++) emitir(top, JSON.stringify({ p, de, l: l.slice(p * P, (p + 1) * P) })); };
+    // Ordenes propias del hibernaculo con hidroponia. Devuelve true si la atendio.
+    function cmdHidro(cmd, valor, msg, quien, crudo) {
+      if (cmd.startsWith('usuario/')) { cmdUsuario(H3.usuarios, esAdminH, registrarH, cmd.slice(8), crudo); pubU3(); return true; }
+      if (cmd === 'registro') { paginas(B3 + 'registro', H3.reg); return true; }
+      if (cmd === 'modo') { if (msg === 'auto' || msg === 'manual') { H3.st.modo = msg; registrarH(quien, msg === 'auto' ? 'pasa a automatico' : 'pasa a manual'); guardarSim(); } pubH(H3); pubHi(); return true; }
+      if (cmd === 'hidro/medicion') {
+        // "ph=6.10,ec=1.80,nota=texto" ; la puede cargar cualquier usuario del equipo
+        if (!esUsuarioH(quien)) { emitir(B3 + 'alarma', 'medición: hay que ingresar con un usuario'); return true; }
+        const d = {}; valor.split(',').forEach(p => { const i = p.indexOf('='); if (i > 0) d[p.slice(0, i)] = p.slice(i + 1); });
+        const ph = parseFloat(d.ph), ec = d.ec === undefined || d.ec === '' ? null : parseFloat(d.ec);
+        if (!(ph >= 0 && ph <= 14) || (ec !== null && !(ec >= 0 && ec <= 10))) { emitir(B3 + 'alarma', 'medición: valores fuera de escala'); return true; }
+        const m = { t: ahoraS(), ph: +ph.toFixed(2), ec: ec === null ? null : +ec.toFixed(2), q: quien, nota: (d.nota || '').slice(0, 40) };
+        hmed.push(m); hmed = hmed.slice(-100); pubHiMed();
+        registrarH(quien, 'medición manual: pH ' + m.ph.toFixed(2) + (m.ec !== null ? ', EC ' + m.ec.toFixed(2) : '') + (m.nota ? ' (' + m.nota + ')' : ''));
+        if (ph < hc.ph_min || ph > hc.ph_max) emitir(B3 + 'alarma', (hc.n + ': pH ' + ph.toFixed(1) + ' fuera de rango (' + hc.ph_min + ' a ' + hc.ph_max + ')').replace(/(\d)\.(\d)/g, '$1,$2'));
+        return true;
+      }
+      if (cmd === 'hidro/config') {
+        if (!esAdminH(quien)) { registrarH(quien, 'rechazado: ajustes de hidroponia (no es administrador)'); emitir(B3 + 'alarma', 'hidroponía: solo un administrador cambia los ajustes'); return true; }
+        valor.split(',').forEach(p => { const [k, v] = p.split('='); if (k === 'n') hc.n = v; else if (k in hc && !isNaN(parseFloat(v))) hc[k] = parseFloat(v); });
+        pubHiCfg(); pubHi(); registrarH(quien, 'ajustes de ' + hc.n); return true;
+      }
+      if (cmd === 'hidro/bomba') {
+        if (msg === 'off') { if (he.b !== 'off') { he.b = 'off'; he.desde = Date.now(); registrarH(quien, 'apaga la bomba'); } }
+        else if (H3.st.modo === 'auto') { emitir(B3 + 'alarma', 'bomba: orden ignorada, esta en automatico'); registrarH(quien, 'pide encender la bomba (ignorado: automatico)'); }
+        else if (he.niv === 'bajo') emitir(B3 + 'alarma', 'bomba: no arranca, nivel del tanque bajo');
+        else if (he.b !== 'on') { he.b = 'on'; he.desde = Date.now(); registrarH(quien, 'enciende la bomba'); }
+        pubHi(); return true;
+      }
+      return false;
+    }
     function recibir(t, crudo) {
       const m = /^vivero\/(nodo\d)\/cmd\/(.+)$/.exec(t); if (!m) return;
       const nodo = m[1], cmd = m[2], li = crudo.lastIndexOf(';');
@@ -153,10 +243,13 @@
       const h = HIB.find(x => x.id === nodo);
       if (h) {                                 // hibernaculo: lo basico
         const B = 'vivero/' + h.id + '/', s2 = h.st;
+        if (h === H3 && cmdHidro(cmd, valor, msg, quien, crudo)) return;
         if (cmd === 'modo') { s2.modo = msg; guardarSim(); }
         else if (cmd === 'venteo' && (s2.modo === 'manual' || msg === 'parar')) s2.venteo = msg === 'abrir' ? 'abierto' : msg === 'cerrar' ? 'cerrado' : s2.venteo;
         else if (cmd === 'riego' && (s2.modo === 'manual' || msg === 'off')) s2.riego = msg;
-        else if (cmd.startsWith('config/')) { h.cfg[cmd.slice(7)] = parseFloat(msg); emitir(B + 'config', JSON.stringify(h.cfg), true); guardarSim(); }
+        else if (cmd.startsWith('config/')) {
+          if (h === H3 && !esAdminH(quien)) { emitir(B + 'alarma', 'config: ' + quienTxt(quien) + ' no es administrador'); return; }
+          h.cfg[cmd.slice(7)] = parseFloat(msg); emitir(B + 'config', JSON.stringify(h.cfg), true); guardarSim(); }
         else if (cmd === 'historial') emitir(B + 'historial', JSON.stringify({ p: 0, de: 1, n: 0, dt: 600, edad: 0, desde: 0, v: [] }));
         pubH(h);
         return;
@@ -194,24 +287,8 @@
         if (!esAdmin(quien)) { registrar(quien, 'rechazado: ajuste ' + k + ' (no es administrador)'); emitir(B1 + 'alarma', 'config: ' + quienTxt(quien) + ' no es administrador'); return; }
         cfg[k] = parseFloat(msg); pubC(); registrar(quien, 'ajuste ' + k + ' = ' + parseFloat(msg).toFixed(1));
       }
-      else if (cmd.startsWith('usuario/')) {
-        const a = cmd.slice(8), f = crudo.split(';').map(x => x.trim()), q = f[f.length - 1];
-        const k = usuarios.findIndex(u => u.n.toLowerCase() === (f[0] || '').toLowerCase());
-        if (a === 'alta' && f.length === 4 && esAdmin(q)) {
-          if (k < 0) usuarios.push({ n: f[0], admin: f[1] === 'admin', h: f[2] }); else Object.assign(usuarios[k], { admin: f[1] === 'admin', h: f[2] });
-          registrar(q, (k < 0 ? 'alta' : 'modifica') + ' de usuario ' + f[0]);
-        } else if (a === 'baja' && f.length === 2 && esAdmin(q) && k >= 0 && usuarios.filter(u => u.admin).length > (usuarios[k].admin ? 1 : 0)) {
-          usuarios.splice(k, 1); registrar(q, 'baja de usuario ' + f[0]);
-        } else if (a === 'pin' && f.length === 3 && k >= 0 && (esAdmin(q) || usuarios[k].n.toLowerCase() === q.toLowerCase())) {
-          usuarios[k].h = f[1]; registrar(q, 'cambia el PIN de ' + usuarios[k].n);
-        }
-        pubU();
-      }
-      else if (cmd === 'registro' || cmd === 'riegos') {
-        const l = cmd === 'registro' ? reg : riegosL, P = 12, de = Math.max(1, Math.ceil(l.length / P));
-        for (let p = 0; p < de; p++) emitir(B1 + cmd, JSON.stringify({ p, de, l: l.slice(p * P, (p + 1) * P) }));
-        return;
-      }
+      else if (cmd.startsWith('usuario/')) { cmdUsuario(usuarios, esAdmin, registrar, cmd.slice(8), crudo); pubU(); }
+      else if (cmd === 'registro' || cmd === 'riegos') { paginas(B1 + cmd, cmd === 'registro' ? reg : riegosL); return; }
       else if (cmd === 'historial') {
         const P = 32, de = Math.ceil(hist.length / P), edad = Math.floor((Date.now() % 600e3) / 1000);
         for (let p = 0; p < de; p++) emitir(B1 + 'historial', JSON.stringify({ p, de, n: hist.length, dt: 600, edad, desde: p * P, v: hist.slice(p * P, (p + 1) * P) }));
@@ -249,8 +326,17 @@
       }
       // un punto nuevo de historial cada 10 min (como el equipo real)
       if (Date.now() - ultHist >= 600e3) { ultHist = Date.now(); hist.shift(); hist.push([Math.round(st.temp * 10), Math.round(st.hum * 10)].concat(ec.map(e => Math.round(e.s)))); }
+      // hidroponia: el agua sigue al aire pero mas lenta; la EC sube y baja de a poco
+      he.ta += ((17.5 + 2.5 * ciclo(Date.now())) - he.ta) * 0.02 + (Math.random() - 0.5) * 0.05;
+      he.ec += ((1.75 + 0.15 * Math.sin(Date.now() / 5.4e6)) - he.ec) * 0.05 + (Math.random() - 0.5) * 0.01;
+      if (he.niv === 'bajo') { if (he.b === 'on') { he.b = 'off'; he.desde = Date.now(); } }
+      else if (H3.st.modo === 'auto' && Date.now() - he.desde >= (he.b === 'on' ? hc.b_on : hc.b_off) * 60e3) { he.b = he.b === 'on' ? 'off' : 'on'; he.desde = Date.now(); }
+      H3.st.riego = he.b;
+      alarmaH('ta', he.ta > hc.ta_max, hc.n + ': agua a ' + he.ta.toFixed(1) + ' °C (máx. ' + hc.ta_max + ')');
+      alarmaH('ec', he.ec < hc.ec_min || he.ec > hc.ec_max, hc.n + ': EC ' + he.ec.toFixed(2) + ' fuera de rango (' + hc.ec_min + ' a ' + hc.ec_max + ')');
+      alarmaH('niv', he.niv === 'bajo', hc.n + ': nivel del tanque bajo, bomba parada');
       st.uptime_s += PASO_MS / 1000;
-      pubE(); pubCu(); HIB.forEach(pubH);
+      pubE(); pubCu(); HIB.forEach(pubH); pubHi();
     }, PASO_MS);
 
     const cli = {

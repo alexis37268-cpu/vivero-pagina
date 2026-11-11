@@ -185,6 +185,7 @@
     .graf svg{height:320px}
     #v-cultivos.on{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px;align-items:start}
     #cu-resumen,#cu-tabs{grid-column:1 / -1}
+    #v-hidro.on{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px;align-items:start}
     #v-ajustes.on,#v-clima.on{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
     #v-ajustes .card,#v-clima .card{margin-bottom:0}
     .filtros{grid-template-columns:2fr 1fr 1fr 2fr}
@@ -199,6 +200,11 @@
   .cu-graf svg{display:block;width:100%;height:150px}
   .cu-graf .ls{fill:none;stroke:var(--verde);stroke-width:2;stroke-linejoin:round}
   .cu-graf .lr{fill:var(--azul);opacity:.18}
+  .cu-graf .eje{fill:var(--muted);font-size:10px;font-variant-numeric:tabular-nums}
+  .cu-graf .rejilla{stroke:var(--line);stroke-width:1}
+  .cu-graf .spt{stroke-width:1;stroke-dasharray:4 4;opacity:.65}
+  .cu-graf .banda{fill:var(--verde);opacity:.12}
+  .cu-graf .pto{fill:var(--verde)} .cu-graf .pto.fuera{fill:var(--rojo)}
   .riego-item{padding:7px 0;border-top:1px solid var(--line);font-size:14px}
   .riego-item:first-child{border-top:0}
   .riego-item small{color:var(--muted);display:block}
@@ -360,6 +366,80 @@
         <div id="cu-riegos"><p class="nota">Cargando…</p></div>
       </div>
       <button class="btn prim" id="cu-exportar" style="width:100%;margin-bottom:12px">Exportar todo a Excel</button>
+    </div>
+  </section>
+
+  <!-- ============ HIDROPONÍA ============ -->
+  <!-- Cultivo en agua: temperatura del agua y EC por sonda, nivel por flotante, bomba por ciclos.
+       El pH NO tiene sonda: lo mide una persona (gotero o medidor de mano) y lo carga acá. -->
+  <section id="v-hidro" class="vista">
+    <div>
+      <div class="card">
+        <div class="graf-cab"><h2 id="hi-nombre">Hidroponía</h2><span class="pill" id="hi-pill">—</span></div>
+        <div class="grande">
+          <div class="medida"><small>Temperatura del agua</small><div class="v" id="hi-ta">--<span>°C</span></div></div>
+          <div class="medida"><small>EC (sonda)</small><div class="v" id="hi-ec">--<span>mS/cm</span></div></div>
+        </div>
+        <div class="fila" style="margin-top:8px"><span>Nivel del tanque</span><span class="estado" id="hi-niv">—</span></div>
+        <div class="fila"><span>Bomba</span><span class="estado" id="hi-bomba">—</span></div>
+        <div class="fila"><span>Ciclo</span><span class="estado" id="hi-ciclo">—</span></div>
+        <div id="hi-avisos"></div>
+        <div class="botones dos" style="margin-top:10px">
+          <button class="btn prim" id="hi-encender" data-manual>Encender bomba</button>
+          <button class="btn" id="hi-apagar">Apagar bomba</button>
+        </div>
+        <p class="nota">«Encender» funciona en manual; «Apagar» siempre. Con el tanque bajo la bomba no arranca.</p>
+      </div>
+      <div class="card">
+        <div class="graf-cab"><h2>pH (medido a mano)</h2><span class="pill" id="hi-ph-pill">—</span></div>
+        <div class="grande">
+          <div class="medida"><small>Último pH</small><div class="v" id="hi-ph">--<span></span></div></div>
+          <div class="medida"><small>EC medida a mano</small><div class="v" id="hi-ecm">--<span>mS/cm</span></div></div>
+        </div>
+        <p class="nota" id="hi-ph-cuando">Sin mediciones cargadas.</p>
+        <div id="hi-ph-aviso"></div>
+        <h3>pH de los últimos 30 días</h3>
+        <div class="cu-graf"><svg id="hi-svg" aria-label="pH medido a mano"></svg></div>
+      </div>
+    </div>
+    <div>
+      <form class="card" id="f-hidro-med" autocomplete="off">
+        <h2>Cargar medición</h2>
+        <p class="nota">Lo que midió con el gotero o el medidor de mano. La fecha, la hora y el usuario se ponen solos.</p>
+        <div class="doble">
+          <div><label for="hm-ph">pH</label><input id="hm-ph" type="number" step="0.01" min="0" max="14" inputmode="decimal" required></div>
+          <div><label for="hm-ec">EC (opcional, mS/cm)</label><input id="hm-ec" type="number" step="0.01" min="0" max="10" inputmode="decimal"></div>
+        </div>
+        <label for="hm-nota">Nota (opcional)</label><input id="hm-nota" maxlength="40" placeholder="ej.: se corrigió con ácido">
+        <div class="botones dos" style="margin-top:12px"><span></span><button type="submit" class="btn prim">Guardar medición</button></div>
+      </form>
+      <div class="card">
+        <h2>Últimas mediciones</h2>
+        <div id="hi-meds"><p class="nota">Sin mediciones.</p></div>
+      </div>
+      <form class="card" id="f-hidro" autocomplete="off">
+        <h2>Ajustes de hidroponía</h2>
+        <label for="hc-nombre">Nombre</label><input id="hc-nombre" maxlength="16">
+        <div class="doble">
+          <div><label for="hc-on">Bomba encendida (min)</label><input id="hc-on" type="number" min="1" max="240" inputmode="numeric"></div>
+          <div><label for="hc-off">Bomba en pausa (min)</label><input id="hc-off" type="number" min="0" max="240" inputmode="numeric"></div>
+        </div>
+        <div class="doble">
+          <div><label for="hc-phmin">pH mínimo</label><input id="hc-phmin" type="number" step="0.1" min="0" max="14" inputmode="decimal"></div>
+          <div><label for="hc-phmax">pH máximo</label><input id="hc-phmax" type="number" step="0.1" min="0" max="14" inputmode="decimal"></div>
+        </div>
+        <div class="doble">
+          <div><label for="hc-ecmin">EC mínima (mS/cm)</label><input id="hc-ecmin" type="number" step="0.1" min="0" max="10" inputmode="decimal"></div>
+          <div><label for="hc-ecmax">EC máxima (mS/cm)</label><input id="hc-ecmax" type="number" step="0.1" min="0" max="10" inputmode="decimal"></div>
+        </div>
+        <div class="doble">
+          <div><label for="hc-tamax">Agua máx. (°C)</label><input id="hc-tamax" type="number" step="0.5" min="10" max="40" inputmode="decimal"></div>
+          <div><label for="hc-dias">Avisar si no se mide pH en (días)</label><input id="hc-dias" type="number" min="1" max="30" inputmode="numeric"></div>
+        </div>
+        <p class="solo-admin" id="hc-admin" hidden>Solo un administrador puede cambiar estos valores.</p>
+        <div class="botones dos" style="margin-top:12px"><span></span><button type="submit" class="btn prim">Guardar</button></div>
+      </form>
+      <button class="btn prim" id="hi-exportar" style="width:100%;margin-bottom:12px">Exportar todo a Excel</button>
     </div>
   </section>
 
@@ -525,7 +605,7 @@
     <p class="nota" id="c-detalle"></p>
     <div class="card" id="c-demo" hidden>
       <h2>Modo demostración</h2>
-      <p class="nota">Para mostrar la app sin placa ni internet: un vivero simulado con 5 cultivos, usuarios de prueba y clima de ejemplo. No toca el equipo real ni sus datos.</p>
+      <p class="nota">Para mostrar la app sin placa ni internet: un vivero simulado con 5 cultivos, un hibernáculo con hidroponía, usuarios de prueba y clima de ejemplo. No toca el equipo real ni sus datos.</p>
       <div class="botones"><button type="button" class="btn prim" id="c-demo-btn">Probar en modo demostración</button></div>
     </div>
   </section>
@@ -535,6 +615,7 @@
   <button data-vista="equipos" class="nav-pc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>Equipos</button>
   <button data-vista="inicio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Inicio</button>
   <button data-vista="cultivos" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21v-9"/><path d="M12 12C12 7 8.5 4 4 4c0 5 3.5 8 8 8z"/><path d="M12 14c0-4 3-6.5 7-6.5 0 4-3 6.5-7 6.5z"/><path d="M5 21h14"/></svg>Cultivos</button>
+  <button data-vista="hidro" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3s-6 6.5-6 11a6 6 0 0 0 12 0c0-4.5-6-11-6-11z"/><path d="M9 15a3 3 0 0 0 3 3"/></svg>Hidroponía</button>
   <button data-vista="clima"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M2.5 8H1M3.6 3.6l1 1M12.4 3.6l-1 1"/><path d="M9 20h9a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.4 1.6A3.3 3.3 0 0 0 9 20z"/></svg>Clima</button>
   <button data-vista="ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Ajustes</button>
   <button data-vista="alarmas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span>Alarmas<span id="badge" class="badge" hidden></span></span></button>
@@ -584,6 +665,7 @@
     if (b.dataset.vista === 'equipos') pintarGrilla();
     if (b.dataset.vista === 'clima') { pintarPermisos(); actualizarAfuera(false); }
     if (b.dataset.vista === 'cultivos') { pintarCultivos(); cargarCultivoCfg(); pedirRiegos(); }
+    if (b.dataset.vista === 'hidro') { pintarHidro(); cargarHidroCfg(); setTimeout(dibujarPh, 0); }
     window.scrollTo(0, 0);
   }));
 
@@ -659,7 +741,8 @@
   function suscribirNodo(){
     cliente.subscribe([base() + 'estado', base() + 'config', base() + 'alarma', base() + 'historial',
                        base() + 'usuarios', base() + 'registro', base() + 'registro/nuevo',
-                       base() + 'cultivos', base() + 'cultivos/config', base() + 'riegos', base() + 'riegos/nuevo'], { qos: 1 });
+                       base() + 'cultivos', base() + 'cultivos/config', base() + 'riegos', base() + 'riegos/nuevo',
+                       base() + 'hidro', base() + 'hidro/config', base() + 'hidro/mediciones'], { qos: 1 });
     ordenar('estado', '1');
     pedirHistorial();
   }
@@ -667,17 +750,19 @@
     if (id === cfg.nodo) return;
     if (cliente && cliente.connected) cliente.unsubscribe([base() + 'estado', base() + 'config', base() + 'alarma', base() + 'historial',
                                                              base() + 'usuarios', base() + 'registro', base() + 'registro/nuevo',
-                                                             base() + 'cultivos', base() + 'cultivos/config', base() + 'riegos', base() + 'riegos/nuevo']);
+                                                             base() + 'cultivos', base() + 'cultivos/config', base() + 'riegos', base() + 'riegos/nuevo',
+                       base() + 'hidro', base() + 'hidro/config', base() + 'hidro/mediciones']);
     cfg.nodo = id; guardar('dm.conexion', cfg); $('#c-nodo').value = id;
     estado = null; cfgEquipo = null; ultimoEstado = 0;
     usuariosEquipo = null; registro = []; regPartes = null;
     cuCfg = null; cuEst = null; riegos = []; riegosPartes = null; cuVivo = {};
+    hiCfg = null; hiEst = null; hiMed = []; hiEditando = false;
     online = nodos[id] ? nodos[id].online : null;
     $('#actualizado').textContent = 'Esperando datos de ' + nombreNodo(id) + '…';
     ['temp','hum'].forEach(k => $('#' + k).firstChild.nodeValue = '--');
     ['venteo','riego','sensor'].forEach(k => poner(k, '—'));
     if (cliente && cliente.connected) suscribirNodo();
-    pintarEquipos(); pintar(); dibujar(); revisarAcceso(); pintarRegistro(); pintarCultivos();
+    pintarEquipos(); pintar(); dibujar(); revisarAcceso(); pintarRegistro(); pintarCultivos(); pintarHidro();
   }
   function pintarResumen(){
     const c = $('#resumen'); if (!c || NATIVO) return;
@@ -796,7 +881,7 @@
     } else if (sub === 'online') {
       online = (txt === 'online'); pintar();
     } else if (sub === 'config') {
-      try { cfgEquipo = JSON.parse(txt); if ($('#v-ajustes').classList.contains('on') && !editando) cargarAjustes(); dibujar(); revisarAcceso(); navCultivos(); } catch (e) {}
+      try { cfgEquipo = JSON.parse(txt); if ($('#v-ajustes').classList.contains('on') && !editando) cargarAjustes(); dibujar(); revisarAcceso(); navCultivos(); pintarHidro(); } catch (e) {}
     } else if (sub === 'historial') {
       try { parteHistorial(JSON.parse(txt)); } catch (e) {}
     } else if (sub === 'usuarios') {
@@ -807,6 +892,12 @@
       try { cuEst = JSON.parse(txt); vivoCultivos(); pintarCultivos(); } catch (e) {}
     } else if (sub === 'cultivos/config') {
       try { cuCfg = JSON.parse(txt); pintarCultivos(); if (!cuEditando) cargarCultivoCfg(); } catch (e) {}
+    } else if (sub === 'hidro') {
+      try { hiEst = JSON.parse(txt); hiEst.cuando = Date.now(); pintarHidro(); } catch (e) {}
+    } else if (sub === 'hidro/config') {
+      try { hiCfg = JSON.parse(txt); pintarHidro(); if (!hiEditando) cargarHidroCfg(); } catch (e) {}
+    } else if (sub === 'hidro/mediciones') {
+      try { hiMed = JSON.parse(txt).map(m => Object.assign({}, m, { t: m.t * 1000 })).sort((a, b) => a.t - b.t); pintarHidro(); } catch (e) {}
     } else if (sub === 'riegos') {
       try { parteRiegos(JSON.parse(txt)); } catch (e) {}
     } else if (sub === 'riegos/nuevo') {
@@ -1526,6 +1617,13 @@
           .concat(cuCfg.map((c, i) => [c.n, redondo(ce[i] && ce[i].lh), redondo(ce[i] && ce[i].lm), redondo(ce[i] && ce[i].lt),
                                        ce[i] && ce[i].s != null ? Math.round(ce[i].s) : '', 'debajo de ' + c.on + ' %, corta por ' + CORTE_TXT[c.m]])) });
     }
+    if (hayHidro() && hiMed.length) {
+      const c = hiCfg || {};
+      hojas.push({ nombre: 'Mediciones manuales', anchos: [12, 8, 8, 16, 14, 34, 16],
+        filas: [['Fecha', 'Hora', 'pH', 'EC a mano mS/cm', 'Quién', 'Nota', 'pH en rango']]
+          .concat(hiMed.slice().reverse().map(m => [dia(m.t), hhmm(m.t), m.ph, m.ec == null ? '' : m.ec, m.q, m.nota || '',
+                                                    c.ph_min == null ? '' : (m.ph >= c.ph_min && m.ph <= c.ph_max ? 'sí' : 'NO')])) });
+    }
     if (registro.length) hojas.push({ nombre: 'Cambios', anchos: [12, 8, 16, 60],
       filas: [['Fecha', 'Hora', 'Quién', 'Qué']].concat(registroFiltrado().slice().reverse().map(r => [dia(r.t), hhmm(r.t), r.q, r.a])) });
     if (afuera && (afuera.estacion || afuera.pronostico)) {
@@ -1555,6 +1653,7 @@
   }
   $('#reg-exportar').addEventListener('click', exportarExcel);
   $('#cu-exportar').addEventListener('click', exportarExcel);
+  $('#hi-exportar').addEventListener('click', exportarExcel);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) revisarAcceso(); });
 
 
@@ -1703,6 +1802,126 @@
     dibujarSuelo();
   }
   $('#cu-riegos-act').addEventListener('click', pedirRiegos);
+
+  // ---------- Hidroponía (cultivo en agua) ----------
+  // Topics: hidro (estado de sondas y bomba), hidro/config (ajustes), hidro/mediciones (lo cargado a mano).
+  // Órdenes: cmd/hidro/medicion "ph=6.10,ec=1.80,nota=..." (cualquier usuario), cmd/hidro/config (administrador),
+  //          cmd/hidro/bomba on/off ("off" siempre; "on" solo en manual).
+  // El pH no tiene sonda a propósito: no hay una de agua por Modbus que se consiga acá. Se mide a mano y queda registrado.
+  let hiCfg = null, hiEst = null, hiMed = [], hiEditando = false;
+  const hayHidro = () => !!(cfgEquipo && cfgEquipo.hidro);
+  const fueraPh = (ph) => hiCfg && (ph < hiCfg.ph_min || ph > hiCfg.ph_max);
+  function hace(ms){
+    const m = Math.max(0, Math.round((Date.now() - ms) / 60e3));
+    if (m < 60) return 'hace ' + m + ' min';
+    const h = Math.round(m / 60); return h < 48 ? 'hace ' + h + ' h' : 'hace ' + Math.round(h / 24) + ' días';
+  }
+  function cajaAviso(id, textos){
+    const c = $('#' + id); c.innerHTML = '';
+    textos.forEach(t => { const d = document.createElement('div'); d.className = 'clima-viejo'; d.style.marginTop = '8px'; d.textContent = '⚠ ' + t; c.append(d); });
+  }
+  function pintarHidro(){
+    const hay = hayHidro();
+    $('nav button[data-vista=hidro]').hidden = !hay;
+    if (!hay) { if ($('#v-hidro').classList.contains('on')) mostrarVista('inicio'); return; }
+    const c = hiCfg || {}, e = hiEst || {}, viejo = !e.cuando || Date.now() - e.cuando > 60e3;
+    $('#hi-nombre').textContent = c.n || 'Hidroponía';
+    const bajo = e.niv === 'bajo', on = e.b === 'on';
+    $('#hi-pill').textContent = !hiEst ? 'Sin datos' : bajo ? 'Tanque bajo' : on ? 'Bomba encendida' : 'Bomba en pausa';
+    $('#hi-pill').className = 'pill ' + (!hiEst ? '' : bajo ? 'mal' : on ? 'ok' : '');
+    $('#hi-ta').firstChild.nodeValue = coma(e.ta, 1);
+    $('#hi-ec').firstChild.nodeValue = coma(e.ec, 2);
+    poner('hi-niv', !hiEst ? '—' : bajo ? 'Bajo (flotante)' : 'Normal', !hiEst ? '' : bajo ? 'rojo' : 'verde');
+    poner('hi-bomba', !hiEst ? '—' : on ? 'Encendida' : 'Apagada', on ? 'azul' : '');
+    const auto = estado && estado.modo === 'auto';
+    $('#hi-ciclo').textContent = c.b_on == null ? '—' : c.b_on + ' min encendida / ' + c.b_off + ' min en pausa' +
+      (auto && e.bs != null ? ' · cambia en ' + Math.ceil(e.bs / 60) + ' min' : auto ? '' : ' · manual');
+    const av = [];
+    if (hiEst && viejo) av.push('Sin datos de las sondas hace más de un minuto.');
+    if (e.ta != null && c.ta_max != null && e.ta > c.ta_max) av.push('Agua a ' + coma(e.ta, 1) + ' °C: arriba de ' + c.ta_max + ' °C baja el oxígeno en las raíces.');
+    if (e.ec != null && c.ec_min != null && (e.ec < c.ec_min || e.ec > c.ec_max)) av.push('EC ' + coma(e.ec, 2) + ' fuera de rango (' + coma(c.ec_min, 1) + ' a ' + coma(c.ec_max, 1) + ').');
+    if (bajo) av.push('Tanque bajo: la bomba queda parada hasta reponer agua.');
+    cajaAviso('hi-avisos', av);
+    $('#hi-encender').disabled = !estado || auto || bajo;
+    // pH a mano
+    const u = hiMed[hiMed.length - 1], avp = [];
+    $('#hi-ph').firstChild.nodeValue = u ? coma(u.ph, 2) : '--';
+    $('#hi-ecm').firstChild.nodeValue = u && u.ec != null ? coma(u.ec, 2) : '--';
+    $('#hi-ph-cuando').textContent = u ? 'Medido ' + hace(u.t) + ' (' + fecha(new Date(u.t)) + ') por ' + u.q + (u.nota ? ' · ' + u.nota : '') : 'Sin mediciones cargadas.';
+    const dias = c.dias_ph || 3, atrasado = !u || Date.now() - u.t > dias * 86400e3;
+    if (atrasado) avp.push(u ? 'Hace más de ' + dias + ' días que no se mide el pH.' : 'Todavía no se cargó ninguna medición de pH.');
+    if (u && fueraPh(u.ph)) avp.push('El último pH está fuera de rango (' + coma(c.ph_min, 1) + ' a ' + coma(c.ph_max, 1) + ').');
+    cajaAviso('hi-ph-aviso', avp);
+    $('#hi-ph-pill').textContent = !u ? 'Sin datos' : avp.length ? 'Revisar' : 'En rango';
+    $('#hi-ph-pill').className = 'pill ' + (!u ? '' : avp.length ? 'aviso' : 'ok');
+    // Lista
+    const l = $('#hi-meds');
+    if (!hiMed.length) l.innerHTML = '<p class="nota">Sin mediciones.</p>';
+    else {
+      l.innerHTML = '';
+      hiMed.slice(-12).reverse().forEach(m => {
+        const d = document.createElement('div'); d.className = 'riego-item';
+        const b = document.createElement('b'); b.textContent = 'pH ' + coma(m.ph, 2) + (m.ec != null ? ' · EC ' + coma(m.ec, 2) + ' mS/cm' : '') + (fueraPh(m.ph) ? ' ⚠' : '');
+        const sm = document.createElement('small'); sm.textContent = fecha(new Date(m.t)) + ' · ' + m.q + (m.nota ? ' · ' + m.nota : '');
+        d.append(b, sm); l.append(d);
+      });
+    }
+    const bloq = !puedeAdmin();
+    $$('#f-hidro input, #f-hidro button').forEach(x => x.disabled = bloq);
+    $('#hc-admin').hidden = !bloq;
+    dibujarPh();
+  }
+  function cargarHidroCfg(){
+    if (!hiCfg) return;
+    const c = hiCfg;
+    $('#hc-nombre').value = c.n; $('#hc-on').value = c.b_on; $('#hc-off').value = c.b_off;
+    $('#hc-phmin').value = c.ph_min; $('#hc-phmax').value = c.ph_max; $('#hc-ecmin').value = c.ec_min; $('#hc-ecmax').value = c.ec_max;
+    $('#hc-tamax').value = c.ta_max; $('#hc-dias').value = c.dias_ph;
+    hiEditando = false;
+  }
+  // pH de los últimos 30 días: puntos cargados a mano sobre la franja de rango
+  function dibujarPh(){
+    const svg = $('#hi-svg'); if (!svg || !$('#v-hidro').classList.contains('on')) return;
+    const W = svg.clientWidth || 340, H = 150, m = { l: 34, r: 10, t: 10, b: 18 }, w = W - m.l - m.r, h = H - m.t - m.b;
+    const ahora = Date.now(), t0 = ahora - 30 * 86400e3, c = hiCfg || {};
+    const X = (t) => m.l + (t - t0) / (ahora - t0) * w, Y = (v) => m.t + (1 - (Math.max(4, Math.min(8, v)) - 4) / 4) * h;
+    let o = '';
+    if (c.ph_min != null) o += `<rect class="banda" x="${m.l}" y="${Y(c.ph_max)}" width="${w}" height="${Y(c.ph_min) - Y(c.ph_max)}"/>`;
+    [4, 5, 6, 7, 8].forEach(v => { o += `<line class="rejilla" x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}"/><text class="eje" x="${m.l - 4}" y="${Y(v) + 3}" text-anchor="end">${v}</text>`; });
+    [30, 20, 10, 0].forEach(d => o += `<text class="eje" x="${X(ahora - d * 86400e3)}" y="${H - 4}" text-anchor="middle">${d ? '-' + d + ' d' : 'hoy'}</text>`);
+    const pts = hiMed.filter(p => p.t >= t0);
+    if (pts.length > 1) o += `<path class="ls" d="${pts.map((p, i) => (i ? 'L' : 'M') + X(p.t).toFixed(1) + ' ' + Y(p.ph).toFixed(1)).join('')}"/>`;
+    pts.forEach(p => o += `<circle class="pto${fueraPh(p.ph) ? ' fuera' : ''}" cx="${X(p.t).toFixed(1)}" cy="${Y(p.ph).toFixed(1)}" r="3.5"/>`);
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.innerHTML = o;
+  }
+  $('#f-hidro-med').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    if (conUsuarios() && !sesionActual()) { avisar('Primero ingresá con tu usuario'); return; }
+    const ph = parseFloat($('#hm-ph').value), ecTxt = $('#hm-ec').value.trim(), ec = ecTxt === '' ? null : parseFloat(ecTxt);
+    if (!(ph >= 0 && ph <= 14)) { avisar('pH entre 0 y 14'); return; }
+    if (ec !== null && !(ec >= 0 && ec <= 10)) { avisar('EC entre 0 y 10 mS/cm'); return; }
+    if (ph < 3 || ph > 10) { if (!confirm('¿Seguro que el pH es ' + ph + '? Es un valor muy raro para hidroponía.')) return; }
+    const nota = $('#hm-nota').value.replace(/[,;|=\\"]/g, ' ').trim().slice(0, 40);
+    const msg = 'ph=' + ph.toFixed(2) + ',ec=' + (ec === null ? '' : ec.toFixed(2)) + ',nota=' + nota;
+    if (ordenar('hidro/medicion', msg)) { avisar('Medición guardada'); $('#f-hidro-med').reset(); }
+  });
+  $('#f-hidro').addEventListener('input', () => hiEditando = true);
+  $('#f-hidro').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    if (!puedeAdmin()) { avisar('Solo un administrador'); return; }
+    const v = (id) => parseFloat($('#' + id).value), n = $('#hc-nombre').value.trim();
+    const d = { b_on: v('hc-on'), b_off: v('hc-off'), ph_min: v('hc-phmin'), ph_max: v('hc-phmax'), ec_min: v('hc-ecmin'), ec_max: v('hc-ecmax'), ta_max: v('hc-tamax'), dias_ph: v('hc-dias') };
+    if (!nombreValido(n)) { avisar('Nombre: hasta 16 letras o números'); return; }
+    if (!(d.b_on >= 1 && d.b_on <= 240 && d.b_off >= 0 && d.b_off <= 240)) { avisar('Bomba: encendida de 1 a 240 min, pausa de 0 a 240'); return; }
+    if (!(d.ph_min >= 0 && d.ph_max <= 14 && d.ph_min < d.ph_max)) { avisar('El pH mínimo tiene que ser menor que el máximo'); return; }
+    if (!(d.ec_min >= 0 && d.ec_max <= 10 && d.ec_min < d.ec_max)) { avisar('La EC mínima tiene que ser menor que la máxima'); return; }
+    if (!(d.ta_max >= 10 && d.ta_max <= 40)) { avisar('Temperatura máxima del agua entre 10 y 40 °C'); return; }
+    if (!(d.dias_ph >= 1 && d.dias_ph <= 30)) { avisar('Días de aviso entre 1 y 30'); return; }
+    const msg = 'n=' + n + ',' + Object.keys(d).map(k => k + '=' + d[k]).join(',');
+    if (ordenar('hidro/config', msg)) { avisar('Ajustes de ' + n + ' enviados'); hiEditando = false; }
+  });
+  $('#hi-encender').addEventListener('click', () => { if (ordenar('hidro/bomba', 'on')) avisar('Encendiendo la bomba'); });
+  $('#hi-apagar').addEventListener('click', () => { if (ordenar('hidro/bomba', 'off')) avisar('Apagando la bomba'); });
 
   // ---------- Ajustes ----------
   // Mismos límites que valida el ESP32 (si no, lo rechaza y manda alarma)
