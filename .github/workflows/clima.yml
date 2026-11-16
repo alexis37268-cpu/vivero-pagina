@@ -2,7 +2,9 @@
 # y deja datos/clima.json en la rama "datos". La pagina para PC lo lee de ahi.
 # Vive en el repo PUBLICO de la pagina: asi no gasta minutos de Actions y la pagina
 # puede leer datos/clima.json sin claves. Los archivos los publica vivero--movil.
-# No necesita claves: solo escribe en este mismo repo.
+# Ademas avisa al broker MQTT de las alertas (vivero/clima/alerta y vivero/clima/cierre),
+# asi la placa cierra el venteo sola con viento o tormenta. Para eso usa los secretos
+# MQTT_USER y MQTT_PASS (usuario "vivero-clima" de EMQX). Sin ellos, ese paso no hace nada.
 name: Clima (robot)
 on:
   schedule:
@@ -46,6 +48,14 @@ jobs:
           git add clima.json kv.json
           git commit -q -m "clima $(date -u +%FT%TZ) [skip ci]"
           git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" datos
+      - name: Avisar al broker (alertas y cierre del venteo)
+        env:
+          MQTT_USER: ${{ secrets.MQTT_USER }}
+          MQTT_PASS: ${{ secrets.MQTT_PASS }}
+        run: |
+          if [ -z "$MQTT_USER" ] || [ -z "$MQTT_PASS" ]; then echo "Faltan los secretos MQTT_USER / MQTT_PASS: no se publica."; exit 0; fi
+          npm install --no-save --silent --prefix /tmp/m mqtt@5.10.1
+          NODE_PATH=/tmp/m/node_modules node robot/clima-robot.js datos --publicar
       - name: Mantener el robot activo
         if: always()
         env:
