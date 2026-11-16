@@ -7,11 +7,44 @@
 //  El workflow sube ese archivo a la rama "datos" del repo; la pagina
 //  para PC lo lee de ahi (GitHub lo permite, la REM no).
 //
-//  Uso: node robot/clima-robot.js <carpeta de datos>
+//  Ademas, con --publicar, manda las alertas al broker MQTT (retenidas):
+//    vivero/clima/alerta  -> JSON con las alertas vigentes (lo muestra la app)
+//    vivero/clima/cierre  -> hasta cuando cerrar el venteo (epoch; 0 = no). Lo lee la placa
+//  Cierran el venteo los avisos del SMN de viento, tormenta, granizo, zonda o nieve,
+//  y una rafaga fuerte medida por la REM (campo "cierra" del revisor), 30 min antes de empezar.
+//  Necesita MQTT_USER y MQTT_PASS (secretos de GitHub); sin ellos no publica.
+//
+//  Uso: node robot/clima-robot.js <carpeta de datos>               (lee REM y SMN)
+//       node robot/clima-robot.js <carpeta de datos> --publicar    (publica lo leido)
 // =============================================================
 const fs = require('fs'), path = require('path'), vm = require('vm');
 
 const DIR = process.argv[2] || 'datos';
+const ANTICIPO_S = 30 * 60;                            // cerrar 30 min antes de que empiece el aviso
+
+// ---------- Publicar en el broker (paso aparte: si falla, clima.json ya se subio igual) ----------
+async function publicar() {
+  const username = process.env.MQTT_USER, password = process.env.MQTT_PASS;
+  if (!username || !password) { console.log('Sin MQTT_USER / MQTT_PASS: no se publica en el broker.'); return; }
+  const r = JSON.parse(fs.readFileSync(path.join(DIR, 'clima.json'), 'utf8'));
+  const ahora = Math.floor(Date.now() / 1000);
+  const vig = (r.alertas || []).filter(a => a.hasta > ahora);
+  const cierre = Math.max(0, ...vig.filter(a => a.cierra && a.desde - ANTICIPO_S <= ahora).map(a => a.hasta));
+  const alerta = { actualizado: ahora, fuente: 'SMN (CC BY 4.0) y REM',
+    alertas: vig.map(a => ({ id: a.id, evento: a.evento, nivel: a.nivel, desde: a.desde, hasta: a.hasta, texto: a.texto, cierra: a.cierra, fuente: a.fuente })) };
+  const mqtt = require('mqtt');
+  const host = process.env.MQTT_HOST || 'p64138d1.ala.us-east-1.emqxsl.com';
+  const c = await mqtt.connectAsync('mqtts://' + host + ':8883', {
+    username, password, clientId: 'vivero-clima-' + Math.random().toString(16).slice(2, 8), connectTimeout: 15000, reconnectPeriod: 0 });
+  await c.publishAsync('vivero/clima/alerta', JSON.stringify(alerta), { qos: 1, retain: true });
+  await c.publishAsync('vivero/clima/cierre', String(cierre), { qos: 1, retain: true });
+  await c.endAsync();
+  console.log('Broker: ' + vig.length + ' alerta(s) vigente(s); cierre de venteo ' + (cierre ? 'hasta ' + new Date(cierre * 1000).toISOString() : 'no'));
+}
+if (process.argv.includes('--publicar')) {
+  publicar().catch(e => { console.error('No se pudo publicar en el broker:', e.message || e); process.exit(1); });
+  return;
+}
 const KV_ARCHIVO = path.join(DIR, 'kv.json');          // memoria del revisor (cache del SMN)
 fs.mkdirSync(DIR, { recursive: true });
 let kv = {};
